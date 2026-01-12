@@ -1,0 +1,12 @@
+{
+  "name": "cgt-calculator-frontend",
+  "version": "1.0.0",
+  "description": "2025 양도소득세 AI 컨설팅 프론트엔드",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'Static site - no build needed'",
+    "start": "npx serve ."
+  },
+  "keywords": ["양도소득세", "세금계산기", "AI상담"],
+  "license": "MIT"
+}

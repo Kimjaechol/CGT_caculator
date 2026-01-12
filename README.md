@@ -2,6 +2,10 @@
 
 공인중개사를 위한 **실시간 양도소득세 계산** 및 **AI 세무상담** 웹 애플리케이션입니다.
 
+> **배포 구조**: Railway(백엔드) + Vercel(프론트엔드) 분리 배포
+>
+> 자세한 배포 방법은 [DEPLOYMENT.md](./DEPLOYMENT.md) 참조
+
 ## 주요 기능
 
 ### 1. 정밀 양도세 계산기
@@ -75,16 +79,21 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ```
 CGT_caculator/
-├── main.py                 # FastAPI 서버 (계산 엔진 + AI 상담)
-├── requirements.txt        # Python 의존성
-├── .env                    # 환경 변수 (API 키)
-├── .env.example           # 환경 변수 예시
-├── .gitignore
-├── templates/
-│   └── index.html         # 프론트엔드 (모바일 최적화)
-├── static/                # 정적 파일
-├── data/                  # SQLite DB 저장 위치
-└── [양도세 관련 문서들]    # RAG 학습 데이터
+├── backend/                    # Railway 배포용 (FastAPI)
+│   ├── main.py                # API 서버
+│   ├── requirements.txt       # Python 의존성
+│   ├── Procfile              # Railway 실행 명령
+│   ├── railway.json          # Railway 설정
+│   └── .env.example          # 환경변수 예시
+│
+├── frontend/                   # Vercel 배포용 (Static)
+│   ├── index.html            # 메인 페이지
+│   ├── env.js                # API URL 설정
+│   ├── vercel.json           # Vercel 설정
+│   └── package.json          # 패키지 정보
+│
+├── DEPLOYMENT.md              # 배포 가이드
+└── [양도세 관련 문서들]        # RAG 학습 데이터
 ```
 
 ## 세율 적용 기준 (2025년)
