@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e40af">
+    <meta name="description" content="2025년 귀속 양도소득세 계산기 - 공인중개사를 위한 실시간 양도세 계산 및 AI 세무상담">
+    <title>2025 양도소득세 AI 컨설팅</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- html2pdf for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Input number spinner hide */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+
+        /* Report styles */
+        .report-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .report-section:last-of-type {
+            border-bottom: none;
+        }
+        .report-section h3 {
+            color: #1e40af;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            padding-left: 0.75rem;
+            border-left: 3px solid #3b82f6;
+        }
+        .report-section p {
+            color: #374151;
+            line-height: 1.7;
+            font-size: 0.9rem;
+        }
+        .report-section ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            color: #374151;
+        }
+        .report-section li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .conclusion-box {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #bfdbfe;
+        }
+        .conclusion-box p {
+            color: #1e40af;
+            font-weight: 500;
+        }
+        .knowledge-box {
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+        .report-footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.8rem;
+        }
+        .error-note {
+            background: #fef2f2;
+            color: #991b1b;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Tab active state */
+        .tab-active {
+            background: white;
+            color: #1e40af;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        /* Mobile bottom navigation */
+        .mobile-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 0.5rem;
+            z-index: 50;
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .mobile-nav {
+                display: flex;
+            }
+            main {
+                padding-bottom: 80px;
+            }
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Result highlight */
+        .result-highlight {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            text-align: center;
+        }
+
+        /* Print styles */
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-800 to-blue-600 text-white sticky top-0 z-50 shadow-lg">
+        <div class="max-w-6xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold">2025 양도소득세</h1>
+                        <p class="text-xs text-blue-200">AI 전문 컨설팅</p>
+                    </div>
+                </div>
+
+                <!-- Desktop Tab Navigation -->
+                <nav class="hidden md:flex bg-blue-900/30 p-1 rounded-lg">
+                    <button onclick="switchTab('calc')" id="btn-calc-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition tab-active">
+                        계산기
+                    </button>
+                    <button onclick="switchTab('consult')" id="btn-consult-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">
+                        AI 상담
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 py-4 md:py-6">
+        <!-- Calculator Tab -->
+        <section id="tab-calc" class="block animate-fadeIn">
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+                <!-- Input Form -->
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-white">
+                        <h2 class="font-semibold flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                            매물 정보 입력
+                        </h2>
+                    </div>
+
+                    <form id="calcForm" class="p-4 space-y-4">
+                        <!-- 거래 일자 -->
+                        <div class="space-y-3">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">거래 일자</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">취득일</label>
+                                    <input type="date" name="acquisition_date" required
+                                        class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">양도일</label>
+                                    <input type="date" name="transfer_date" required
+                                        class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 거래 금액 -->
+                        <div class="space-y-3">
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">거래 금액</label>
+                            <div class="space-y-2">
+                                <div class="relative">
+                                    <input type="text" name="acquisition_price" required placeholder="취득가액"
+                                        class="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                        oninput="formatNumberInput(this)">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">원</span>
+                                </div>
+                                <div class="relative">
+                                    <input type="text" name="transfer_price" required placeholder="양도가액"
+                                        class="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                        oninput="formatNumberInput(this)">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">원</span>
+                                </div>
+                                <div class="relative">
+                                    <input type="text" name="necessary_expenses" placeholder="필요경비 (취득세, 중개보수 등)"
+                                        class="w-full px-3 py-2.5 pr-12 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                        oninput="formatNumberInput(this)">
+                                    <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">원</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 자산 유형 -->
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">자산 유형</label>
+                            <select name="asset_type" class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none cursor-pointer">
+                                <option value="housing">주택 (아파트/빌라/단독)</option>
+                                <option value="land">토지 (일반)</option>
+                                <option value="land_nonbiz">토지 (비사업용)</option>
+                                <option value="building">상가/오피스</option>
+                                <option value="right">분양권/입주권</option>
+                            </select>
+                        </div>
+
+                        <!-- 특례/감면 설정 (Accordion) -->
+                        <div class="border border-gray-200 rounded-xl overflow-hidden">
+                            <button type="button" onclick="toggleAdvanced()"
+                                class="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center justify-between text-left">
+                                <span class="text-sm font-medium text-blue-700">특례 및 감면 설정</span>
+                                <svg id="advIcon" class="w-5 h-5 text-blue-500 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                </svg>
+                            </button>
+
+                            <div id="advOptions" class="hidden px-4 py-4 bg-white space-y-4 border-t border-gray-100">
+                                <!-- 1세대1주택 -->
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" name="is_1h1h" id="is_1h1h" class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-700">1세대 1주택 (비과세/고가주택)</span>
+                                </label>
+
+                                <!-- 거주기간 -->
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">실거주 기간 (년)</label>
+                                    <input type="number" name="residence_years" value="0" min="0" max="50"
+                                        class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                                </div>
+
+                                <!-- 조정대상지역 -->
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" name="is_adjusted_area" class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-700">조정대상지역 소재</span>
+                                </label>
+
+                                <!-- 보유주택수 -->
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">보유 주택 수</label>
+                                    <select name="housing_count" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                                        <option value="1">1주택</option>
+                                        <option value="2">2주택</option>
+                                        <option value="3">3주택 이상</option>
+                                    </select>
+                                </div>
+
+                                <!-- 감면 유형 -->
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">세액감면 대상</label>
+                                    <select name="reduction_type" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                                        <option value="none">해당없음</option>
+                                        <option value="farming_8yr">8년 자경농지 (100% 감면)</option>
+                                        <option value="public_cash">공익사업 수용 - 현금보상 (10%)</option>
+                                        <option value="public_bond_3yr">공익사업 수용 - 3년 채권 (40%)</option>
+                                        <option value="public_bond_5yr">공익사업 수용 - 5년 채권 (15%)</option>
+                                    </select>
+                                </div>
+
+                                <!-- 등기 여부 -->
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" name="is_registered" checked class="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-700">등기 완료</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 계산 버튼 -->
+                        <button type="submit" id="calcBtn"
+                            class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition transform active:scale-[0.98]">
+                            <span id="calcBtnText">세금 계산하기</span>
+                            <div id="calcBtnSpinner" class="hidden spinner mx-auto"></div>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Results -->
+                <div class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-3 text-white flex items-center justify-between">
+                        <h2 class="font-semibold flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            계산 결과
+                        </h2>
+                        <button onclick="downloadCalcPDF()" id="downloadPdfBtn" class="hidden px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-medium transition">
+                            PDF 저장
+                        </button>
+                    </div>
+
+                    <div id="resultContainer" class="p-4 min-h-[400px] flex items-center justify-center">
+                        <!-- Empty State -->
+                        <div id="emptyState" class="text-center text-gray-400 py-12">
+                            <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
+                            <p class="text-sm">매물 정보를 입력하고<br><strong>계산하기</strong> 버튼을 눌러주세요</p>
+                        </div>
+
+                        <!-- Result Content -->
+                        <div id="calcResult" class="hidden w-full animate-fadeIn">
+                            <div id="printArea">
+                                <!-- 총 납부세액 -->
+                                <div class="result-highlight mb-6">
+                                    <p class="text-sm text-blue-200 mb-1">총 납부세액</p>
+                                    <p class="text-3xl md:text-4xl font-bold" id="res_total">0원</p>
+                                    <p class="text-xs text-blue-200 mt-2" id="res_rate_note"></p>
+                                </div>
+
+                                <!-- 세부 내역 -->
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">양도차익</span>
+                                        <span class="font-medium" id="res_gross">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">(-) 장기보유특별공제</span>
+                                        <span class="font-medium text-blue-600" id="res_lthsd">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">(-) 양도소득기본공제</span>
+                                        <span class="font-medium text-blue-600" id="res_basic">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100 bg-gray-50 -mx-2 px-2 rounded">
+                                        <span class="text-gray-700 text-sm font-medium">과세표준</span>
+                                        <span class="font-semibold" id="res_base">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">산출세액</span>
+                                        <span class="font-medium" id="res_calc">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">(-) 세액감면</span>
+                                        <span class="font-medium text-green-600" id="res_reduction">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">결정세액 (소득세)</span>
+                                        <span class="font-medium" id="res_final">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">(+) 지방소득세 (10%)</span>
+                                        <span class="font-medium" id="res_local">0원</span>
+                                    </div>
+                                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                                        <span class="text-gray-600 text-sm">(+) 농어촌특별세</span>
+                                        <span class="font-medium" id="res_rural">0원</span>
+                                    </div>
+                                </div>
+
+                                <!-- 보유기간 -->
+                                <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-blue-700">보유기간</span>
+                                        <span class="font-medium text-blue-800" id="res_holding">-</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-sm mt-1">
+                                        <span class="text-blue-700">실효세율</span>
+                                        <span class="font-medium text-blue-800" id="res_effective">-</span>
+                                    </div>
+                                </div>
+
+                                <!-- 경고/안내 -->
+                                <div id="warningsContainer" class="mt-4 hidden">
+                                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                        <p class="text-xs font-medium text-amber-800 mb-1">주의사항</p>
+                                        <ul id="warningsList" class="text-xs text-amber-700 space-y-1"></ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- AI 상담 연결 -->
+                            <div class="mt-6 pt-4 border-t border-gray-100">
+                                <button onclick="goToConsultWithData()"
+                                    class="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium rounded-xl transition flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                    </svg>
+                                    <span>이 결과로 AI 상담받기</span>
+                                </button>
+                            </div>
+
+                            <!-- 면책조항 -->
+                            <p class="text-xs text-gray-400 mt-4 text-center">
+                                본 계산 결과는 참고용이며, 실제 세액과 다를 수 있습니다.<br>
+                                정확한 세액은 관할 세무서 또는 세무사와 상담하세요.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Consultation Tab -->
+        <section id="tab-consult" class="hidden animate-fadeIn">
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="flex flex-col lg:flex-row h-auto lg:h-[700px]">
+                    <!-- Chat Area -->
+                    <div class="flex-1 flex flex-col">
+                        <div class="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3 text-white">
+                            <h2 class="font-semibold flex items-center">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                                AI 세무사 상담
+                                <span class="ml-2 px-2 py-0.5 bg-white/20 rounded text-xs">Gemini Pro</span>
+                            </h2>
+                            <p class="text-xs text-purple-200 mt-1">양도소득세 전문 AI가 보고서 형식으로 답변해 드립니다</p>
+                        </div>
+
+                        <!-- Chat History -->
+                        <div id="chatHistory" class="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4 min-h-[300px] lg:min-h-0">
+                            <!-- Welcome Message -->
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div class="bg-white rounded-2xl rounded-tl-none px-4 py-3 shadow-sm max-w-[85%]">
+                                    <p class="text-sm text-gray-700 leading-relaxed">
+                                        안녕하세요! 30년 경력의 양도소득세 전문 AI 세무사입니다.<br><br>
+                                        복잡한 양도세 규정, 비과세 요건, 감면 조건 등 무엇이든 물어보세요.<br>
+                                        <strong>세무사 보고서 형식</strong>으로 상세하게 답변해 드립니다.
+                                    </p>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <button onclick="setQuickQuestion('1세대1주택 비과세 요건이 어떻게 되나요?')"
+                                            class="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs rounded-full hover:bg-purple-100 transition">
+                                            1세대1주택 비과세
+                                        </button>
+                                        <button onclick="setQuickQuestion('일시적 2주택 비과세 조건을 알려주세요')"
+                                            class="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs rounded-full hover:bg-purple-100 transition">
+                                            일시적 2주택
+                                        </button>
+                                        <button onclick="setQuickQuestion('장기보유특별공제 계산 방법을 설명해주세요')"
+                                            class="px-3 py-1.5 bg-purple-50 text-purple-700 text-xs rounded-full hover:bg-purple-100 transition">
+                                            장기보유특별공제
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chat Input -->
+                        <div class="p-4 bg-white border-t border-gray-100">
+                            <form id="chatForm" class="flex gap-2">
+                                <input type="text" id="userQuery" required
+                                    class="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                                    placeholder="양도소득세에 대해 질문해 주세요...">
+                                <button type="submit" id="sendBtn"
+                                    class="px-5 py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium rounded-xl transition flex items-center justify-center min-w-[80px]">
+                                    <span id="sendBtnText">전송</span>
+                                    <div id="sendBtnSpinner" class="hidden spinner"></div>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Report Preview (Desktop) -->
+                    <div id="reportPreview" class="hidden lg:flex w-full lg:w-1/2 bg-gray-50 border-l border-gray-200 flex-col">
+                        <div class="px-4 py-3 bg-white border-b border-gray-200 flex items-center justify-between">
+                            <h3 class="font-medium text-gray-700 text-sm">상담 보고서</h3>
+                            <button onclick="downloadReportPDF()" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                <span>PDF 다운로드</span>
+                            </button>
+                        </div>
+                        <div id="reportContent" class="flex-1 overflow-y-auto p-6">
+                            <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                                <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <p class="text-sm text-center">상담 결과가<br>보고서 형태로 표시됩니다</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav justify-around">
+        <button onclick="switchTab('calc')" id="btn-calc-mobile"
+            class="flex flex-col items-center py-2 px-6 text-blue-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            <span class="text-xs mt-1 font-medium">계산기</span>
+        </button>
+        <button onclick="switchTab('consult')" id="btn-consult-mobile"
+            class="flex flex-col items-center py-2 px-6 text-gray-400">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+            </svg>
+            <span class="text-xs mt-1 font-medium">AI 상담</span>
+        </button>
+    </nav>
+
+    <script>
+        // === 전역 상태 ===
+        let lastCalcResult = null;
+        let currentTab = 'calc';
+
+        // === 유틸리티 함수 ===
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '0';
+            return new Intl.NumberFormat('ko-KR').format(num);
+        }
+
+        function formatMoney(num) {
+            return formatNumber(num) + '원';
+        }
+
+        function parseFormattedNumber(str) {
+            if (!str) return 0;
+            return parseInt(str.replace(/[^0-9]/g, '')) || 0;
+        }
+
+        function formatNumberInput(input) {
+            const value = input.value.replace(/[^0-9]/g, '');
+            if (value) {
+                input.value = formatNumber(parseInt(value));
+            }
+        }
+
+        // === 탭 전환 ===
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // 탭 콘텐츠 전환
+            document.getElementById('tab-calc').classList.toggle('hidden', tab !== 'calc');
+            document.getElementById('tab-consult').classList.toggle('hidden', tab !== 'consult');
+
+            // 데스크탑 네비게이션
+            document.getElementById('btn-calc-desktop').classList.toggle('tab-active', tab === 'calc');
+            document.getElementById('btn-calc-desktop').classList.toggle('text-blue-200', tab !== 'calc');
+            document.getElementById('btn-consult-desktop').classList.toggle('tab-active', tab === 'consult');
+            document.getElementById('btn-consult-desktop').classList.toggle('text-blue-200', tab !== 'consult');
+
+            // 모바일 네비게이션
+            document.getElementById('btn-calc-mobile').classList.toggle('text-blue-600', tab === 'calc');
+            document.getElementById('btn-calc-mobile').classList.toggle('text-gray-400', tab !== 'calc');
+            document.getElementById('btn-consult-mobile').classList.toggle('text-blue-600', tab === 'consult');
+            document.getElementById('btn-consult-mobile').classList.toggle('text-gray-400', tab !== 'consult');
+        }
+
+        // === 고급 설정 토글 ===
+        function toggleAdvanced() {
+            const options = document.getElementById('advOptions');
+            const icon = document.getElementById('advIcon');
+            options.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        }
+
+        // === 계산기 로직 ===
+        document.getElementById('calcForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const formData = new FormData(form);
+
+            // 버튼 로딩 상태
+            const btn = document.getElementById('calcBtn');
+            const btnText = document.getElementById('calcBtnText');
+            const btnSpinner = document.getElementById('calcBtnSpinner');
+            btn.disabled = true;
+            btnText.classList.add('hidden');
+            btnSpinner.classList.remove('hidden');
+
+            // 데이터 구성
+            const data = {
+                transfer_date: formData.get('transfer_date'),
+                acquisition_date: formData.get('acquisition_date'),
+                transfer_price: parseFormattedNumber(formData.get('transfer_price')),
+                acquisition_price: parseFormattedNumber(formData.get('acquisition_price')),
+                necessary_expenses: parseFormattedNumber(formData.get('necessary_expenses')),
+                asset_type: formData.get('asset_type'),
+                is_1h1h: form.querySelector('[name="is_1h1h"]').checked,
+                residence_years: parseInt(formData.get('residence_years')) || 0,
+                is_adjusted_area: form.querySelector('[name="is_adjusted_area"]').checked,
+                housing_count: parseInt(formData.get('housing_count')) || 1,
+                reduction_type: formData.get('reduction_type'),
+                is_registered: form.querySelector('[name="is_registered"]').checked
+            };
+
+            try {
+                const res = await fetch('/api/calculate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await res.json();
+                lastCalcResult = result;
+
+                displayCalcResult(result);
+
+            } catch (err) {
+                alert('계산 중 오류가 발생했습니다: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btnText.classList.remove('hidden');
+                btnSpinner.classList.add('hidden');
+            }
+        });
+
+        function displayCalcResult(result) {
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('calcResult').classList.remove('hidden');
+            document.getElementById('downloadPdfBtn').classList.remove('hidden');
+
+            if (result.status === 'exempt' || result.status === 'no_tax') {
+                // 비과세/무세
+                document.getElementById('res_total').textContent = '0원';
+                document.getElementById('res_rate_note').textContent = result.summary.message || '';
+                document.getElementById('res_gross').textContent = formatMoney(result.calculation?.gross_gain || 0);
+                document.getElementById('res_lthsd').textContent = '0원';
+                document.getElementById('res_basic').textContent = '0원';
+                document.getElementById('res_base').textContent = '0원';
+                document.getElementById('res_calc').textContent = '0원';
+                document.getElementById('res_reduction').textContent = '0원';
+                document.getElementById('res_final').textContent = '0원';
+                document.getElementById('res_local').textContent = '0원';
+                document.getElementById('res_rural').textContent = '0원';
+                document.getElementById('res_holding').textContent = result.calculation?.holding_period?.display || '-';
+                document.getElementById('res_effective').textContent = '0%';
+                return;
+            }
+
+            const s = result.summary;
+
+            document.getElementById('res_total').textContent = formatMoney(s.total_tax);
+            document.getElementById('res_rate_note').textContent = s.rate_note || '';
+            document.getElementById('res_gross').textContent = formatMoney(s.gross_gain);
+            document.getElementById('res_lthsd').textContent = '-' + formatMoney(s.lthsd_amount);
+            document.getElementById('res_basic').textContent = '-' + formatMoney(result.calculation.basic_deduction);
+            document.getElementById('res_base').textContent = formatMoney(s.tax_base);
+            document.getElementById('res_calc').textContent = formatMoney(s.calc_tax);
+            document.getElementById('res_reduction').textContent = '-' + formatMoney(s.reduction);
+            document.getElementById('res_final').textContent = formatMoney(s.final_tax);
+            document.getElementById('res_local').textContent = '+' + formatMoney(s.local_tax);
+            document.getElementById('res_rural').textContent = '+' + formatMoney(s.rural_tax);
+            document.getElementById('res_holding').textContent = s.holding_display;
+            document.getElementById('res_effective').textContent = s.effective_rate + '%';
+
+            // 경고 표시
+            const warningsContainer = document.getElementById('warningsContainer');
+            const warningsList = document.getElementById('warningsList');
+
+            if (result.warnings && result.warnings.length > 0) {
+                warningsList.innerHTML = result.warnings.map(w => `<li>${w}</li>`).join('');
+                warningsContainer.classList.remove('hidden');
+            } else {
+                warningsContainer.classList.add('hidden');
+            }
+        }
+
+        // === AI 상담 로직 ===
+        document.getElementById('chatForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const input = document.getElementById('userQuery');
+            const query = input.value.trim();
+            if (!query) return;
+
+            // 버튼 상태
+            const sendBtn = document.getElementById('sendBtn');
+            const sendBtnText = document.getElementById('sendBtnText');
+            const sendBtnSpinner = document.getElementById('sendBtnSpinner');
+            sendBtn.disabled = true;
+            sendBtnText.classList.add('hidden');
+            sendBtnSpinner.classList.remove('hidden');
+
+            // 사용자 메시지 추가
+            addChatMessage(query, 'user');
+            input.value = '';
+
+            // 로딩 메시지
+            const loadingId = 'loading-' + Date.now();
+            addChatMessage('보고서를 작성하고 있습니다...', 'assistant', loadingId, true);
+
+            try {
+                const res = await fetch('/api/consult', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        context_data: lastCalcResult ? lastCalcResult.summary : null
+                    })
+                });
+
+                const result = await res.json();
+
+                // 로딩 메시지 제거
+                document.getElementById(loadingId)?.remove();
+
+                if (result.status === 'success') {
+                    // 채팅에 간략 안내 추가
+                    addChatMessage('상담 보고서가 작성되었습니다. 우측(모바일은 아래)에서 확인하세요.', 'assistant', null, false, true);
+
+                    // 보고서 영역 업데이트
+                    updateReportPreview(result.html);
+                } else {
+                    addChatMessage('죄송합니다. 오류가 발생했습니다.', 'assistant');
+                }
+
+            } catch (err) {
+                document.getElementById(loadingId)?.remove();
+                addChatMessage('서버 연결에 실패했습니다: ' + err.message, 'assistant');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtnText.classList.remove('hidden');
+                sendBtnSpinner.classList.add('hidden');
+            }
+        });
+
+        function addChatMessage(content, role, id = null, isLoading = false, showReport = false) {
+            const chatHistory = document.getElementById('chatHistory');
+            const msgId = id || 'msg-' + Date.now();
+
+            if (role === 'user') {
+                chatHistory.innerHTML += `
+                    <div id="${msgId}" class="flex justify-end">
+                        <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 max-w-[85%] shadow-sm">
+                            <p class="text-sm">${content}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                let extraHtml = '';
+                if (showReport) {
+                    extraHtml = `
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button onclick="downloadReportPDF()" class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                <span>PDF 다운로드</span>
+                            </button>
+                        </div>
+                        <div class="lg:hidden mt-4 border-t border-gray-100 pt-4" id="mobileReport"></div>
+                    `;
+                }
+
+                chatHistory.innerHTML += `
+                    <div id="${msgId}" class="flex items-start space-x-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                        <div class="bg-white rounded-2xl rounded-tl-none px-4 py-3 shadow-sm max-w-[85%]">
+                            ${isLoading ? '<div class="flex items-center space-x-2"><div class="spinner"></div><p class="text-sm text-gray-500">작성 중...</p></div>' : `<p class="text-sm text-gray-700">${content}</p>`}
+                            ${extraHtml}
+                        </div>
+                    </div>
+                `;
+            }
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function updateReportPreview(html) {
+            // 데스크탑 보고서 영역
+            const reportContent = document.getElementById('reportContent');
+            reportContent.innerHTML = `<div id="finalReport" class="bg-white p-6 rounded-xl shadow-sm">${html}</div>`;
+            document.getElementById('reportPreview').classList.remove('hidden');
+            document.getElementById('reportPreview').classList.add('lg:flex');
+
+            // 모바일 보고서 영역
+            const mobileReport = document.getElementById('mobileReport');
+            if (mobileReport) {
+                mobileReport.innerHTML = `<div class="bg-gray-50 p-4 rounded-lg text-sm">${html}</div>`;
+            }
+        }
+
+        function setQuickQuestion(question) {
+            document.getElementById('userQuery').value = question;
+            document.getElementById('userQuery').focus();
+        }
+
+        function goToConsultWithData() {
+            switchTab('consult');
+            if (lastCalcResult) {
+                const summary = lastCalcResult.summary;
+                const question = `방금 계산한 양도세 결과에 대해 검토해 주세요. 총 납부세액 ${formatMoney(summary.total_tax)}, 양도차익 ${formatMoney(summary.gross_gain)}, 실효세율 ${summary.effective_rate}%입니다.`;
+                setQuickQuestion(question);
+            }
+        }
+
+        // === PDF 다운로드 ===
+        function downloadCalcPDF() {
+            const element = document.getElementById('printArea');
+            if (!element) return;
+
+            const opt = {
+                margin: 15,
+                filename: `양도소득세_계산결과_${new Date().toISOString().slice(0,10)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function downloadReportPDF() {
+            let element = document.getElementById('finalReport');
+            if (!element) {
+                // 모바일에서는 다른 요소 찾기
+                const mobileReport = document.getElementById('mobileReport');
+                if (mobileReport) {
+                    element = mobileReport.querySelector('div');
+                }
+            }
+
+            if (!element) {
+                alert('다운로드할 보고서가 없습니다.');
+                return;
+            }
+
+            const opt = {
+                margin: 15,
+                filename: `세무상담_보고서_${new Date().toISOString().slice(0,10)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // === 초기화 ===
+        document.addEventListener('DOMContentLoaded', () => {
+            // 오늘 날짜를 양도일 기본값으로
+            const today = new Date().toISOString().split('T')[0];
+            document.querySelector('[name="transfer_date"]').value = today;
+        });
+    </script>
+</body>
+</html>
