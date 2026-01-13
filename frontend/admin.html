@@ -199,6 +199,47 @@
                 </div>
             </div>
 
+    <!-- 지식 편집 모달 -->
+    <div id="editKnowledgeModal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-gray-800">지식 항목 편집</h3>
+                <button onclick="hideEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <form id="editKnowledgeForm" class="space-y-4">
+                <input type="hidden" id="editKnowledgeId">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
+                    <select id="editKnowledgeCategory" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="비과세">비과세</option>
+                        <option value="세율">세율</option>
+                        <option value="공제">공제</option>
+                        <option value="감면">감면</option>
+                        <option value="신고">신고</option>
+                        <option value="2025">2025</option>
+                        <option value="일반">일반</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">제목</label>
+                    <input type="text" id="editKnowledgeTitle" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">내용</label>
+                    <textarea id="editKnowledgeContent" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 h-48" required></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">키워드 (공백으로 구분)</label>
+                    <input type="text" id="editKnowledgeKeywords" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">저장</button>
+                    <button type="button" onclick="hideEditModal()" class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition">취소</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
             <!-- Gemini File Search 탭 -->
             <div id="tab-gemini" class="tab-content hidden">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -524,6 +565,7 @@
                             <td class="max-w-xs truncate" title="${e.content}">${e.content.substring(0, 100)}...</td>
                             <td class="text-gray-500 text-xs">${e.keywords}</td>
                             <td>
+                                <button onclick="showEditModal(${e.id})" class="text-blue-500 hover:text-blue-700 text-sm mr-2">편집</button>
                                 <button onclick="deleteKnowledge(${e.id})" class="text-red-500 hover:text-red-700 text-sm">삭제</button>
                             </td>
                         </tr>
@@ -572,6 +614,58 @@
                 showToast('삭제 중 오류가 발생했습니다', 'error');
             }
         }
+
+        // 지식 편집 모달 함수들
+        async function showEditModal(id) {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`);
+                const data = await res.json();
+                if (data.entry) {
+                    document.getElementById('editKnowledgeId').value = data.entry.id;
+                    document.getElementById('editKnowledgeCategory').value = data.entry.category || '일반';
+                    document.getElementById('editKnowledgeTitle').value = data.entry.title || '';
+                    document.getElementById('editKnowledgeContent').value = data.entry.content || '';
+                    document.getElementById('editKnowledgeKeywords').value = data.entry.keywords || '';
+                    document.getElementById('editKnowledgeModal').classList.remove('hidden');
+                } else {
+                    showToast('지식 항목을 찾을 수 없습니다', 'error');
+                }
+            } catch (err) {
+                showToast('지식 항목을 불러오는 중 오류가 발생했습니다', 'error');
+            }
+        }
+
+        function hideEditModal() {
+            document.getElementById('editKnowledgeModal').classList.add('hidden');
+        }
+
+        // 편집 폼 제출 핸들러
+        document.getElementById('editKnowledgeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editKnowledgeId').value;
+            const formData = new FormData();
+            formData.append('category', document.getElementById('editKnowledgeCategory').value);
+            formData.append('title', document.getElementById('editKnowledgeTitle').value);
+            formData.append('content', document.getElementById('editKnowledgeContent').value);
+            formData.append('keywords', document.getElementById('editKnowledgeKeywords').value);
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('지식 항목이 수정되었습니다', 'success');
+                    hideEditModal();
+                    loadKnowledge();
+                } else {
+                    showToast(data.detail || '수정 실패', 'error');
+                }
+            } catch (err) {
+                showToast('수정 중 오류가 발생했습니다', 'error');
+            }
+        });
 
         // FTS5 파일 업로드
         async function uploadFTS5Files(files) {

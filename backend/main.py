@@ -1949,6 +1949,50 @@ async def delete_knowledge_entry(entry_id: int, admin: dict = Depends(require_ad
     return {"status": "success"}
 
 
+@app.put("/api/admin/knowledge/{entry_id}")
+async def update_knowledge_entry(
+    entry_id: int,
+    category: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(...),
+    keywords: str = Form(""),
+    admin: dict = Depends(require_admin)
+):
+    """지식 데이터베이스 항목 수정"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE tax_knowledge
+        SET category = ?, title = ?, content = ?, keywords = ?
+        WHERE rowid = ?
+    """, (category, title, content, keywords, entry_id))
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "message": "항목이 수정되었습니다."}
+
+
+@app.get("/api/admin/knowledge/{entry_id}")
+async def get_knowledge_entry(entry_id: int, admin: dict = Depends(require_admin)):
+    """지식 데이터베이스 항목 조회"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, category, title, content, keywords FROM tax_knowledge WHERE rowid = ?", (entry_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다")
+
+    return {
+        "id": row[0],
+        "category": row[1],
+        "title": row[2],
+        "content": row[3],
+        "keywords": row[4]
+    }
+
+
 @app.post("/api/admin/knowledge/upload")
 async def upload_knowledge_file(
     file: UploadFile = File(...),
