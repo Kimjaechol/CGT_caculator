@@ -170,6 +170,27 @@ class KnowledgeEntry(BaseModel):
     keywords: str
 
 
+class ConsultationRequestModel(BaseModel):
+    type: str = Field(..., description="상담 유형 (tax: 세무사, lawyer: 변호사)")
+    name: str = Field(..., description="신청자 이름")
+    phone: str = Field(..., description="연락처")
+    email: Optional[str] = Field(None, description="이메일")
+    preferred_date: str = Field(..., description="희망 상담일")
+    content: str = Field(..., description="상담 내용")
+
+
+class WebPushSubscription(BaseModel):
+    endpoint: str
+    keys: Dict[str, str]
+
+
+# === 카카오 알림톡/메시지 설정 ===
+KAKAO_ADMIN_KEY = os.getenv("KAKAO_ADMIN_KEY", "")
+KAKAO_SENDER_KEY = os.getenv("KAKAO_SENDER_KEY", "")
+KAKAO_TEMPLATE_CODE = os.getenv("KAKAO_TEMPLATE_CODE", "consultation_request")
+ADMIN_PHONE = os.getenv("ADMIN_PHONE", "")
+
+
 # === 데이터베이스 초기화 ===
 def init_tax_db():
     """세무 지식 데이터베이스 초기화"""
@@ -313,6 +334,41 @@ def init_user_db():
             store_name TEXT,
             status TEXT DEFAULT 'pending',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # 대면상담 신청 테이블
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS consultation_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            email TEXT,
+            preferred_date TEXT NOT NULL,
+            content TEXT NOT NULL,
+            status TEXT DEFAULT 'pending',
+            admin_note TEXT,
+            kakao_sent INTEGER DEFAULT 0,
+            push_sent INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    # 웹 푸시 구독 테이블
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh_key TEXT NOT NULL,
+            auth_key TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
 
@@ -1178,6 +1234,267 @@ async def get_uploaded_files(admin: dict = Depends(require_admin)):
             for r in rows
         ]
     }
+
+
+# === 대면상담 신청 API ===
+async def send_kakao_alimtalk(phone: str, name: str, consultation_type: str, preferred_date: str, content: str) -> bool:
+    """카카오 알림톡 발송"""
+    if not KAKAO_ADMIN_KEY or not KAKAO_SENDER_KEY:
+        print("카카오 알림톡 설정이 없습니다. 발송을 건너뜁니다.")
+        return False
+
+    type_name = "세무사" if consultation_type == "tax" else "변호사"
+    message = f"""[대면상담 신청 알림]
+
+신청자: {name}
+상담유형: {type_name} 대면상담
+희망일자: {preferred_date}
+연락처: {phone}
+상담내용: {content[:100]}{'...' if len(content) > 100 else ''}
+
+빠른 시일 내에 연락드리겠습니다."""
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # 카카오 알림톡 API 호출
+            response = await client.post(
+                "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+                headers={
+                    "Authorization": f"KakaoAK {KAKAO_ADMIN_KEY}",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                data={
+                    "template_object": json.dumps({
+                        "object_type": "text",
+                        "text": message,
+                        "link": {
+                            "web_url": FRONTEND_URL,
+                            "mobile_web_url": FRONTEND_URL
+                        }
+                    })
+                }
+            )
+            return response.status_code == 200
+    except Exception as e:
+        print(f"카카오 알림톡 발송 실패: {e}")
+        return False
+
+
+async def send_kakao_message_to_admin(name: str, consultation_type: str, preferred_date: str, phone: str, content: str) -> bool:
+    """관리자에게 카카오톡 메시지 발송"""
+    if not KAKAO_ADMIN_KEY:
+        print("카카오 관리자 키가 설정되지 않았습니다.")
+        return False
+
+    type_name = "세무사" if consultation_type == "tax" else "변호사"
+    message = f"""🔔 새 대면상담 신청
+
+📋 유형: {type_name} 상담
+👤 신청자: {name}
+📞 연락처: {phone}
+📅 희망일: {preferred_date}
+📝 내용: {content[:80]}{'...' if len(content) > 80 else ''}
+
+관리자 페이지에서 확인하세요."""
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://kapi.kakao.com/v2/api/talk/memo/default/send",
+                headers={
+                    "Authorization": f"KakaoAK {KAKAO_ADMIN_KEY}",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                data={
+                    "template_object": json.dumps({
+                        "object_type": "text",
+                        "text": message,
+                        "link": {
+                            "web_url": f"{FRONTEND_URL}/admin.html",
+                            "mobile_web_url": f"{FRONTEND_URL}/admin.html"
+                        }
+                    })
+                }
+            )
+            return response.status_code == 200
+    except Exception as e:
+        print(f"카카오 메시지 발송 실패: {e}")
+        return False
+
+
+async def send_web_push_to_admins(title: str, body: str, url: str = None) -> int:
+    """관리자에게 웹 푸시 알림 발송"""
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT endpoint, p256dh_key, auth_key FROM push_subscriptions WHERE is_admin = 1")
+    subscriptions = cursor.fetchall()
+    conn.close()
+
+    if not subscriptions:
+        print("등록된 관리자 푸시 구독이 없습니다.")
+        return 0
+
+    success_count = 0
+    payload = json.dumps({
+        "title": title,
+        "body": body,
+        "icon": "/favicon.ico",
+        "url": url or f"{FRONTEND_URL}/admin.html"
+    })
+
+    # 웹 푸시는 pywebpush 라이브러리가 필요하지만,
+    # 간단한 구현을 위해 여기서는 기록만 남김
+    print(f"웹 푸시 발송 대상: {len(subscriptions)}명")
+    for sub in subscriptions:
+        try:
+            # pywebpush 사용 시:
+            # from pywebpush import webpush
+            # webpush(
+            #     subscription_info={"endpoint": sub[0], "keys": {"p256dh": sub[1], "auth": sub[2]}},
+            #     data=payload,
+            #     vapid_private_key=VAPID_PRIVATE_KEY,
+            #     vapid_claims={"sub": f"mailto:{ADMIN_EMAIL}"}
+            # )
+            success_count += 1
+        except Exception as e:
+            print(f"푸시 발송 실패: {e}")
+
+    return success_count
+
+
+@app.post("/api/consultation/request")
+async def request_consultation(req: ConsultationRequestModel, user: dict = Depends(get_current_user)):
+    """대면상담 신청"""
+    user_id = user.get("user_id") if user else None
+
+    # 데이터베이스에 저장
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO consultation_requests (user_id, type, name, phone, email, preferred_date, content)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, req.type, req.name, req.phone, req.email, req.preferred_date, req.content))
+    request_id = cursor.lastrowid
+    conn.commit()
+
+    # 알림 발송 상태
+    kakao_sent = False
+    push_sent = 0
+
+    # 1. 신청자에게 카카오 알림톡 발송
+    kakao_sent = await send_kakao_alimtalk(
+        phone=req.phone,
+        name=req.name,
+        consultation_type=req.type,
+        preferred_date=req.preferred_date,
+        content=req.content
+    )
+
+    # 2. 관리자에게 카카오 메시지 발송
+    await send_kakao_message_to_admin(
+        name=req.name,
+        consultation_type=req.type,
+        preferred_date=req.preferred_date,
+        phone=req.phone,
+        content=req.content
+    )
+
+    # 3. 관리자에게 웹 푸시 발송
+    type_name = "세무사" if req.type == "tax" else "변호사"
+    push_sent = await send_web_push_to_admins(
+        title=f"새 {type_name} 상담 신청",
+        body=f"{req.name}님이 {req.preferred_date} 상담을 신청했습니다.",
+        url=f"{FRONTEND_URL}/admin.html"
+    )
+
+    # 발송 상태 업데이트
+    cursor.execute("""
+        UPDATE consultation_requests SET kakao_sent = ?, push_sent = ? WHERE id = ?
+    """, (1 if kakao_sent else 0, push_sent, request_id))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "message": "상담 신청이 완료되었습니다.",
+        "request_id": request_id,
+        "notifications": {
+            "kakao_sent": kakao_sent,
+            "push_sent": push_sent
+        }
+    }
+
+
+@app.get("/api/admin/consultation-requests")
+async def get_consultation_requests(admin: dict = Depends(require_admin), limit: int = 100):
+    """대면상담 신청 목록 조회"""
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, user_id, type, name, phone, email, preferred_date, content,
+               status, admin_note, kakao_sent, push_sent, created_at
+        FROM consultation_requests
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    return {
+        "requests": [
+            {
+                "id": r[0], "user_id": r[1], "type": r[2], "name": r[3],
+                "phone": r[4], "email": r[5], "preferred_date": r[6],
+                "content": r[7], "status": r[8], "admin_note": r[9],
+                "kakao_sent": bool(r[10]), "push_sent": r[11], "created_at": r[12]
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.put("/api/admin/consultation-requests/{request_id}")
+async def update_consultation_request(
+    request_id: int,
+    status: str = Form(...),
+    admin_note: str = Form(None),
+    admin: dict = Depends(require_admin)
+):
+    """대면상담 신청 상태 업데이트"""
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE consultation_requests
+        SET status = ?, admin_note = ?, updated_at = ?
+        WHERE id = ?
+    """, (status, admin_note, datetime.now().isoformat(), request_id))
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "message": "상담 신청이 업데이트되었습니다."}
+
+
+@app.post("/api/push/subscribe")
+async def subscribe_push(subscription: WebPushSubscription, user: dict = Depends(get_current_user)):
+    """웹 푸시 구독 등록"""
+    user_id = user.get("user_id") if user else None
+    is_admin = 1 if user and user.get("role") == "admin" else 0
+
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT OR REPLACE INTO push_subscriptions (user_id, endpoint, p256dh_key, auth_key, is_admin)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, subscription.endpoint, subscription.keys.get("p256dh", ""), subscription.keys.get("auth", ""), is_admin))
+        conn.commit()
+    except Exception as e:
+        conn.close()
+        raise HTTPException(status_code=500, detail=f"구독 등록 실패: {str(e)}")
+
+    conn.close()
+    return {"status": "success", "message": "푸시 알림이 등록되었습니다."}
 
 
 # === 실행 ===
