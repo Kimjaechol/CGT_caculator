@@ -388,7 +388,13 @@ def search_knowledge(query: str, limit: int = 5) -> str:
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        search_query = ' OR '.join(query.split())
+        # FTS5 특수문자 제거 (알파벳, 숫자, 한글만 유지)
+        import re
+        clean_query = re.sub(r'[^\w\s가-힣]', ' ', query)
+        words = [w.strip() for w in clean_query.split() if w.strip()]
+        if not words:
+            return "검색어가 없습니다."
+        search_query = ' OR '.join(words)
         cursor.execute("""
             SELECT title, content FROM tax_knowledge
             WHERE tax_knowledge MATCH ?
