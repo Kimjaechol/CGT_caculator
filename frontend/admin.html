@@ -702,11 +702,13 @@
             }
         });
 
-        // FTS5 파일 업로드
+        // FTS5 파일 업로드 (AI 키워드 자동 추출)
         async function uploadFTS5Files(files) {
             const statusDiv = document.getElementById('fts5UploadStatus');
             statusDiv.classList.remove('hidden');
-            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 중...</div>';
+            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 및 AI 키워드 추출 중...</div>';
+
+            const uploadResults = [];
 
             for (const file of files) {
                 const formData = new FormData();
@@ -716,21 +718,48 @@
                     const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/upload`, {
                         method: 'POST',
                         body: formData
-                    });
+                    }, 30000); // AI 추출 시간을 위해 30초 타임아웃
                     const data = await res.json();
                     if (data.status === 'success') {
-                        showToast(`${file.name} 업로드 완료`, 'success');
+                        uploadResults.push({
+                            filename: file.name,
+                            entry_id: data.entry_id,
+                            keywords: data.extracted_keywords,
+                            keyword_count: data.keyword_count
+                        });
+                        showToast(`${file.name} 업로드 완료 (키워드 ${data.keyword_count}개 추출)`, 'success');
                     } else {
                         showToast(`${file.name}: ${data.message}`, 'error');
                     }
                 } catch (err) {
-                    showToast(`${file.name} 업로드 실패`, 'error');
+                    showToast(`${file.name} 업로드 실패: ${err.message}`, 'error');
                 }
             }
 
-            statusDiv.innerHTML = '<p class="text-green-600">업로드 완료</p>';
+            // 업로드 결과 표시 (키워드 편집 버튼 포함)
+            if (uploadResults.length > 0) {
+                statusDiv.innerHTML = `
+                    <div class="space-y-3">
+                        <p class="text-green-600 font-medium">업로드 완료!</p>
+                        ${uploadResults.map(r => `
+                            <div class="p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-medium text-sm">${r.filename}</span>
+                                    <button onclick="showEditModal(${r.entry_id})" class="text-blue-500 hover:text-blue-700 text-sm">키워드 편집</button>
+                                </div>
+                                <p class="text-xs text-gray-600">추출된 키워드 (${r.keyword_count}개):</p>
+                                <p class="text-xs text-gray-500 mt-1">${r.keywords || '없음'}</p>
+                            </div>
+                        `).join('')}
+                        <p class="text-xs text-gray-400 mt-2">키워드는 목록에서 편집 버튼을 클릭하여 언제든 수정할 수 있습니다.</p>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = '<p class="text-red-600">업로드 실패</p>';
+            }
+
             loadKnowledge();
-            loadUploads();
+            tabDataLoaded.uploads = false; // 업로드 탭 새로고침 필요
         }
 
         // Gemini File Search

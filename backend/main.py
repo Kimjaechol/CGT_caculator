@@ -415,6 +415,56 @@ def init_user_db():
 
 
 # ============================================
+# === AI 키워드 자동 추출 ===
+# ============================================
+async def extract_keywords_with_ai(content: str, title: str = "") -> str:
+    """
+    AI를 사용하여 세무 문서에서 핵심 키워드 10~20개 자동 추출
+    """
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        # API 키가 없으면 제목에서 기본 키워드 추출
+        return title.replace('_', ' ')
+
+    try:
+        # 내용이 너무 길면 앞부분만 사용 (토큰 절약)
+        truncated_content = content[:8000] if len(content) > 8000 else content
+
+        prompt = f"""당신은 한국 세무 전문가입니다. 아래 세무 관련 문서에서 FTS5 검색에 최적화된 핵심 키워드 10~20개를 추출해주세요.
+
+## 키워드 추출 기준:
+1. 법률 용어 (예: 비과세, 양도소득세, 장기보유특별공제)
+2. 조문 번호 (예: 제89조, 제154조, 소득세법)
+3. 핵심 개념 (예: 1세대1주택, 고가주택, 12억원)
+4. 동의어/유사어 포함 (예: 1가구1주택, 단독주택)
+5. 시행령, 시행규칙 언급시 포함
+
+## 문서 제목: {title}
+
+## 문서 내용:
+{truncated_content}
+
+## 출력 형식:
+키워드만 공백으로 구분하여 한 줄로 출력 (설명 없이)
+예시: 비과세 1세대1주택 양도소득세 12억원 2년보유 거주요건 소득세법 제89조 장기보유특별공제"""
+
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(prompt)
+
+        if response and response.text:
+            # 추출된 키워드 정리 (줄바꿈 제거, 중복 제거)
+            keywords = response.text.strip().replace('\n', ' ').replace(',', ' ')
+            # 중복 제거
+            keyword_list = list(dict.fromkeys(keywords.split()))
+            return ' '.join(keyword_list[:20])  # 최대 20개
+
+        return title.replace('_', ' ')
+
+    except Exception as e:
+        print(f"AI 키워드 추출 오류: {e}")
+        return title.replace('_', ' ')
+
+
+# ============================================
 # === 검색 파이프라인 2.0 (Search Pipeline 2.0) ===
 # ============================================
 # 3가지 검색을 병렬 실행:
@@ -1998,7 +2048,7 @@ async def upload_knowledge_file(
     file: UploadFile = File(...),
     admin: dict = Depends(require_admin)
 ):
-    """마크다운/텍스트 파일을 FTS5에 업로드"""
+    """마크다운/텍스트 파일을 FTS5에 업로드 (AI 키워드 자동 추출)"""
     filename = file.filename
     content = await file.read()
 
@@ -2011,18 +2061,21 @@ async def upload_knowledge_file(
             "message": "텍스트 파일만 FTS5에 업로드할 수 있습니다. 바이너리 파일은 Gemini File Search를 사용해주세요."
         }
 
-    # FTS5에 저장
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
     # 파일명에서 카테고리 추출 (예: "비과세_일시적2주택.md" -> "비과세")
     category = filename.split('_')[0] if '_' in filename else "일반"
     title = filename.rsplit('.', 1)[0]  # 확장자 제거
 
+    # AI 키워드 자동 추출 (Gemini 사용)
+    keywords = await extract_keywords_with_ai(text_content, title)
+
+    # FTS5에 저장
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO tax_knowledge (category, title, content, keywords) VALUES (?, ?, ?, ?)",
-        (category, title, text_content, title.replace('_', ' '))
+        (category, title, text_content, keywords)
     )
+    entry_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
@@ -2036,7 +2089,13 @@ async def upload_knowledge_file(
     conn.commit()
     conn.close()
 
-    return {"status": "success", "message": f"'{filename}'이(가) FTS5에 추가되었습니다."}
+    return {
+        "status": "success",
+        "message": f"'{filename}'이(가) FTS5에 추가되었습니다.",
+        "entry_id": entry_id,
+        "extracted_keywords": keywords,
+        "keyword_count": len(keywords.split()) if keywords else 0
+    }
 
 
 @app.post("/api/admin/gemini/upload")
