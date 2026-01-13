@@ -2085,6 +2085,103 @@ async def get_knowledge_entries(admin: dict = Depends(require_admin)):
     }
 
 
+# === 데이터 백업/복원 API ===
+@app.get("/api/admin/backup")
+async def backup_all_data(admin: dict = Depends(require_admin)):
+    """
+    모든 데이터를 JSON으로 백업 (knowledge + categories)
+    재배포 전에 이 API를 호출하여 데이터 보존
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # Knowledge 데이터
+    cursor.execute("SELECT rowid, category, title, content, keywords FROM tax_knowledge")
+    knowledge_rows = cursor.fetchall()
+
+    # Categories 데이터
+    cursor.execute("SELECT id, name, description, display_order FROM categories ORDER BY display_order, name")
+    category_rows = cursor.fetchall()
+
+    conn.close()
+
+    backup_data = {
+        "version": "1.0",
+        "timestamp": datetime.now().isoformat(),
+        "knowledge": [
+            {"id": r[0], "category": r[1], "title": r[2], "content": r[3], "keywords": r[4]}
+            for r in knowledge_rows
+        ],
+        "categories": [
+            {"id": r[0], "name": r[1], "description": r[2], "display_order": r[3]}
+            for r in category_rows
+        ]
+    }
+
+    return backup_data
+
+
+@app.post("/api/admin/restore")
+async def restore_all_data(
+    file: UploadFile = File(...),
+    admin: dict = Depends(require_admin)
+):
+    """
+    백업 JSON 파일에서 데이터 복원
+    기존 데이터를 모두 삭제하고 백업에서 복원
+    """
+    try:
+        content = await file.read()
+        backup_data = json.loads(content.decode('utf-8'))
+
+        if "knowledge" not in backup_data:
+            raise HTTPException(status_code=400, detail="Invalid backup file: missing 'knowledge' field")
+
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # 기존 데이터 삭제
+        cursor.execute("DELETE FROM tax_knowledge")
+
+        # Knowledge 복원
+        restored_knowledge = 0
+        for item in backup_data.get("knowledge", []):
+            cursor.execute(
+                "INSERT INTO tax_knowledge (category, title, content, keywords) VALUES (?, ?, ?, ?)",
+                (item.get("category", ""), item.get("title", ""), item.get("content", ""), item.get("keywords", ""))
+            )
+            restored_knowledge += 1
+
+        # Categories 복원 (있는 경우)
+        restored_categories = 0
+        if "categories" in backup_data:
+            cursor.execute("DELETE FROM categories")
+            for item in backup_data.get("categories", []):
+                try:
+                    cursor.execute(
+                        "INSERT INTO categories (name, description, display_order) VALUES (?, ?, ?)",
+                        (item.get("name", ""), item.get("description", ""), item.get("display_order", 0))
+                    )
+                    restored_categories += 1
+                except sqlite3.IntegrityError:
+                    pass  # 중복 카테고리 무시
+
+        conn.commit()
+        conn.close()
+
+        return {
+            "success": True,
+            "message": f"복원 완료: knowledge {restored_knowledge}건, categories {restored_categories}건",
+            "restored_knowledge": restored_knowledge,
+            "restored_categories": restored_categories
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"복원 실패: {str(e)}")
+
+
 # === 카테고리 관리 API ===
 @app.get("/api/admin/categories")
 async def get_categories(admin: dict = Depends(require_admin)):

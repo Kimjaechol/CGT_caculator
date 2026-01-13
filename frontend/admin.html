@@ -119,6 +119,28 @@
 
             <!-- 지식 DB 관리 탭 -->
             <div id="tab-knowledge" class="tab-content">
+                <!-- 데이터 백업/복원 섹션 -->
+                <div class="card mb-6">
+                    <div class="card-header flex items-center justify-between">
+                        <span>데이터 백업/복원</span>
+                        <span class="text-xs text-gray-500">재배포 전 반드시 백업하세요!</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="flex flex-wrap gap-4 items-center">
+                            <button onclick="downloadBackup()" class="btn bg-green-600 text-white hover:bg-green-700">
+                                📥 전체 백업 다운로드
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <input type="file" id="restoreFile" accept=".json" class="input text-sm" style="max-width: 250px;">
+                                <button onclick="restoreBackup()" class="btn bg-orange-500 text-white hover:bg-orange-600">
+                                    📤 복원
+                                </button>
+                            </div>
+                            <span id="backupStatus" class="text-sm text-gray-500"></span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 카테고리 관리 섹션 -->
                 <div class="card mb-6">
                     <div class="card-header flex items-center justify-between">
@@ -565,6 +587,85 @@
             // 현재 활성 탭의 데이터만 로드 (기본: knowledge)
             loadKnowledge();
             tabDataLoaded.knowledge = true;
+        }
+
+        // === 데이터 백업/복원 ===
+        async function downloadBackup() {
+            const statusEl = document.getElementById('backupStatus');
+            statusEl.textContent = '백업 중...';
+            statusEl.className = 'text-sm text-blue-500';
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/backup`);
+                const data = await res.json();
+
+                // JSON 파일로 다운로드
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `tax_backup_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                const knowledgeCount = data.knowledge?.length || 0;
+                const categoryCount = data.categories?.length || 0;
+                statusEl.textContent = `백업 완료! (knowledge: ${knowledgeCount}건, categories: ${categoryCount}건)`;
+                statusEl.className = 'text-sm text-green-600';
+            } catch (e) {
+                statusEl.textContent = `백업 실패: ${e.message}`;
+                statusEl.className = 'text-sm text-red-500';
+            }
+        }
+
+        async function restoreBackup() {
+            const fileInput = document.getElementById('restoreFile');
+            const statusEl = document.getElementById('backupStatus');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('복원할 JSON 파일을 선택해주세요.');
+                return;
+            }
+
+            if (!confirm('기존 데이터가 모두 삭제되고 백업 파일로 대체됩니다. 계속하시겠습니까?')) {
+                return;
+            }
+
+            statusEl.textContent = '복원 중...';
+            statusEl.className = 'text-sm text-blue-500';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+
+                const res = await fetch(`${API_BASE_URL}/api/admin/restore`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${sessionStorage.getItem('adminToken')}`
+                    },
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || '복원 실패');
+                }
+
+                const data = await res.json();
+                statusEl.textContent = data.message;
+                statusEl.className = 'text-sm text-green-600';
+
+                // 데이터 새로고침
+                loadCategories();
+                loadKnowledge();
+
+                alert('복원 완료!');
+            } catch (e) {
+                statusEl.textContent = `복원 실패: ${e.message}`;
+                statusEl.className = 'text-sm text-red-500';
+            }
         }
 
         // === 카테고리 관리 ===
