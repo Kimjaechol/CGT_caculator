@@ -229,6 +229,35 @@ def init_tax_db():
         USING fts5(category, title, content, keywords)
     """)
 
+    # 카테고리 테이블 생성
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            display_order INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # 기본 카테고리 추가
+    default_categories = [
+        ("비과세", "비과세 관련 규정", 1),
+        ("세율", "세율 관련 규정", 2),
+        ("공제", "공제 관련 규정", 3),
+        ("감면", "감면 관련 규정", 4),
+        ("신고", "신고 관련 규정", 5),
+        ("일반", "기타 일반 규정", 99),
+    ]
+    for name, desc, order in default_categories:
+        try:
+            cursor.execute(
+                "INSERT OR IGNORE INTO categories (name, description, display_order) VALUES (?, ?, ?)",
+                (name, desc, order)
+            )
+        except:
+            pass
+
     cursor.execute("SELECT count(*) FROM tax_knowledge")
     if cursor.fetchone()[0] == 0:
         knowledge_data = [
@@ -1990,6 +2019,99 @@ async def get_knowledge_entries(admin: dict = Depends(require_admin)):
             for r in rows
         ]
     }
+
+
+# === 카테고리 관리 API ===
+@app.get("/api/admin/categories")
+async def get_categories(admin: dict = Depends(require_admin)):
+    """카테고리 목록 조회"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, description, display_order FROM categories ORDER BY display_order, name")
+    rows = cursor.fetchall()
+    conn.close()
+
+    return {
+        "categories": [
+            {"id": r[0], "name": r[1], "description": r[2], "display_order": r[3]}
+            for r in rows
+        ]
+    }
+
+
+@app.post("/api/admin/categories")
+async def add_category(
+    name: str = Form(...),
+    description: str = Form(""),
+    display_order: int = Form(10),
+    admin: dict = Depends(require_admin)
+):
+    """카테고리 추가"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO categories (name, description, display_order) VALUES (?, ?, ?)",
+            (name, description, display_order)
+        )
+        category_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return {"status": "success", "id": category_id, "name": name}
+    except sqlite3.IntegrityError:
+        conn.close()
+        return {"status": "error", "message": "이미 존재하는 카테고리입니다"}
+
+
+@app.put("/api/admin/categories/{category_id}")
+async def update_category(
+    category_id: int,
+    name: str = Form(...),
+    description: str = Form(""),
+    display_order: int = Form(10),
+    admin: dict = Depends(require_admin)
+):
+    """카테고리 수정"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE categories SET name = ?, description = ?, display_order = ? WHERE id = ?",
+            (name, description, display_order, category_id)
+        )
+        conn.commit()
+        conn.close()
+        return {"status": "success"}
+    except sqlite3.IntegrityError:
+        conn.close()
+        return {"status": "error", "message": "이미 존재하는 카테고리 이름입니다"}
+
+
+@app.delete("/api/admin/categories/{category_id}")
+async def delete_category(category_id: int, admin: dict = Depends(require_admin)):
+    """카테고리 삭제"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # 해당 카테고리를 사용하는 지식 항목 수 확인
+    cursor.execute("SELECT name FROM categories WHERE id = ?", (category_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return {"status": "error", "message": "카테고리를 찾을 수 없습니다"}
+
+    category_name = row[0]
+    cursor.execute("SELECT COUNT(*) FROM tax_knowledge WHERE category = ?", (category_name,))
+    count = cursor.fetchone()[0]
+
+    if count > 0:
+        conn.close()
+        return {"status": "error", "message": f"이 카테고리에 {count}개의 지식 항목이 있어 삭제할 수 없습니다. 먼저 항목들을 다른 카테고리로 이동해주세요."}
+
+    cursor.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
 
 
 @app.post("/api/admin/knowledge")

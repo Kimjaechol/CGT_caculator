@@ -119,6 +119,30 @@
 
             <!-- 지식 DB 관리 탭 -->
             <div id="tab-knowledge" class="tab-content">
+                <!-- 카테고리 관리 섹션 -->
+                <div class="card mb-6">
+                    <div class="card-header flex items-center justify-between">
+                        <span>카테고리 관리</span>
+                        <button onclick="toggleCategoryForm()" class="btn text-sm bg-blue-500 text-white">+ 새 카테고리</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="addCategoryForm" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <input type="text" id="newCategoryName" class="input" placeholder="카테고리명">
+                                <input type="text" id="newCategoryDesc" class="input" placeholder="설명 (선택)">
+                                <div class="flex gap-2">
+                                    <input type="number" id="newCategoryOrder" class="input w-20" placeholder="순서" value="10">
+                                    <button onclick="addCategory()" class="btn btn-primary">추가</button>
+                                    <button onclick="toggleCategoryForm()" class="btn bg-gray-200 text-gray-700">취소</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="categoriesList" class="flex flex-wrap gap-2">
+                            <span class="text-gray-400 text-sm">카테고리를 불러오는 중...</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- 지식 추가 -->
                     <div class="card">
@@ -127,12 +151,8 @@
                             <form id="addKnowledgeForm" class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
-                                    <select id="knowledgeCategory" class="input">
-                                        <option value="비과세">비과세</option>
-                                        <option value="공제">공제</option>
-                                        <option value="세율">세율</option>
-                                        <option value="감면">감면</option>
-                                        <option value="일반">일반</option>
+                                    <select id="knowledgeCategory" class="input category-select">
+                                        <option value="">로딩 중...</option>
                                     </select>
                                 </div>
                                 <div>
@@ -161,14 +181,8 @@
                             </p>
                             <div class="mb-4">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">업로드할 카테고리 선택</label>
-                                <select id="uploadCategory" class="input">
-                                    <option value="비과세">비과세</option>
-                                    <option value="세율">세율</option>
-                                    <option value="공제">공제</option>
-                                    <option value="감면">감면</option>
-                                    <option value="신고">신고</option>
-                                    <option value="2025">2025</option>
-                                    <option value="일반">일반</option>
+                                <select id="uploadCategory" class="input category-select">
+                                    <option value="">로딩 중...</option>
                                 </select>
                             </div>
                             <div id="fts5UploadZone" class="upload-zone" onclick="document.getElementById('fts5FileInput').click()">
@@ -230,14 +244,8 @@
                 <input type="hidden" id="editKnowledgeId">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
-                    <select id="editKnowledgeCategory" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
-                        <option value="비과세">비과세</option>
-                        <option value="세율">세율</option>
-                        <option value="공제">공제</option>
-                        <option value="감면">감면</option>
-                        <option value="신고">신고</option>
-                        <option value="2025">2025</option>
-                        <option value="일반">일반</option>
+                    <select id="editKnowledgeCategory" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 category-select">
+                        <option value="">로딩 중...</option>
                     </select>
                 </div>
                 <div>
@@ -552,9 +560,120 @@
         };
 
         function loadAllData() {
+            // 카테고리 먼저 로드 (모든 드롭다운에서 사용)
+            loadCategories();
             // 현재 활성 탭의 데이터만 로드 (기본: knowledge)
             loadKnowledge();
             tabDataLoaded.knowledge = true;
+        }
+
+        // === 카테고리 관리 ===
+        let categoriesCache = [];
+
+        async function loadCategories() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/categories`);
+                const data = await res.json();
+                categoriesCache = data.categories || [];
+
+                // 카테고리 목록 표시
+                const container = document.getElementById('categoriesList');
+                if (categoriesCache.length > 0) {
+                    container.innerHTML = categoriesCache.map(c => `
+                        <div class="inline-flex items-center px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                            <span class="font-medium text-blue-700">${c.name}</span>
+                            ${c.description ? `<span class="text-gray-500 ml-1">(${c.description})</span>` : ''}
+                            <button onclick="deleteCategory(${c.id}, '${c.name}')" class="ml-2 text-red-400 hover:text-red-600" title="삭제">&times;</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<span class="text-gray-400 text-sm">등록된 카테고리가 없습니다</span>';
+                }
+
+                // 모든 카테고리 드롭다운 업데이트
+                updateCategoryDropdowns();
+            } catch (err) {
+                console.error('카테고리 로드 실패:', err);
+                document.getElementById('categoriesList').innerHTML = `<span class="text-red-400 text-sm">카테고리 로드 실패</span>`;
+            }
+        }
+
+        function updateCategoryDropdowns() {
+            const selects = document.querySelectorAll('.category-select');
+            const options = categoriesCache.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+            selects.forEach(select => {
+                const currentValue = select.value;
+                select.innerHTML = options || '<option value="">카테고리 없음</option>';
+                // 기존 선택값 유지
+                if (currentValue && categoriesCache.some(c => c.name === currentValue)) {
+                    select.value = currentValue;
+                }
+            });
+        }
+
+        function toggleCategoryForm() {
+            const form = document.getElementById('addCategoryForm');
+            form.classList.toggle('hidden');
+            if (!form.classList.contains('hidden')) {
+                document.getElementById('newCategoryName').focus();
+            }
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('newCategoryName').value.trim();
+            const description = document.getElementById('newCategoryDesc').value.trim();
+            const order = document.getElementById('newCategoryOrder').value || 10;
+
+            if (!name) {
+                showToast('카테고리명을 입력해주세요', 'error');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('description', description);
+                formData.append('display_order', order);
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/categories`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`카테고리 '${name}' 추가됨`, 'success');
+                    document.getElementById('newCategoryName').value = '';
+                    document.getElementById('newCategoryDesc').value = '';
+                    toggleCategoryForm();
+                    loadCategories();
+                } else {
+                    showToast(data.message || '카테고리 추가 실패', 'error');
+                }
+            } catch (err) {
+                showToast('카테고리 추가 오류', 'error');
+            }
+        }
+
+        async function deleteCategory(id, name) {
+            if (!confirm(`카테고리 '${name}'을(를) 삭제하시겠습니까?`)) return;
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/categories/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`카테고리 '${name}' 삭제됨`, 'success');
+                    loadCategories();
+                } else {
+                    showToast(data.message || '카테고리 삭제 실패', 'error');
+                }
+            } catch (err) {
+                showToast('카테고리 삭제 오류', 'error');
+            }
         }
 
         // 탭 전환 (필요시 데이터 로드)
@@ -796,14 +915,23 @@
         // 지식 편집 모달 함수들
         async function showEditModal(id) {
             try {
+                // 드롭다운 옵션 먼저 업데이트
+                updateCategoryDropdowns();
+
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`);
                 const data = await res.json();
                 if (data.entry) {
                     document.getElementById('editKnowledgeId').value = data.entry.id;
-                    document.getElementById('editKnowledgeCategory').value = data.entry.category || '일반';
                     document.getElementById('editKnowledgeTitle').value = data.entry.title || '';
                     document.getElementById('editKnowledgeContent').value = data.entry.content || '';
                     document.getElementById('editKnowledgeKeywords').value = data.entry.keywords || '';
+
+                    // 카테고리 설정 (없으면 첫번째 옵션)
+                    const categorySelect = document.getElementById('editKnowledgeCategory');
+                    if (data.entry.category) {
+                        categorySelect.value = data.entry.category;
+                    }
+
                     document.getElementById('editKnowledgeModal').classList.remove('hidden');
                 } else {
                     showToast('지식 항목을 찾을 수 없습니다', 'error');
