@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e40af">
+    <title>관리자 페이지 - 2025 양도소득세 AI 컨설팅</title>
+
+    <script src="./env.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .tab-btn.active { background: white; color: #1e40af; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-gray-800 to-gray-700 text-white sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold">관리자 페이지</h1>
+                        <p class="text-xs text-gray-300">양도소득세 AI 플랫폼</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="adminName" class="text-sm text-gray-300"></span>
+                    <a href="./index.html" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition">메인으로</a>
+                    <button onclick="logout()" class="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded-lg text-sm transition">로그아웃</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Access Denied Message -->
+        <div id="accessDenied" class="hidden bg-red-50 border border-red-200 rounded-xl p-8 text-center">
+            <svg class="w-16 h-16 mx-auto mb-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <h2 class="text-xl font-bold text-red-700 mb-2">접근 권한이 없습니다</h2>
+            <p class="text-red-600 mb-4">관리자 권한이 필요한 페이지입니다.</p>
+            <a href="./index.html" class="inline-block px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">메인으로 돌아가기</a>
+        </div>
+
+        <!-- Admin Content -->
+        <div id="adminContent" class="hidden">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">총 회원 수</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statUsers">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">오늘 계산 건수</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statCalcs">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">오늘 상담 건수</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statConsults">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-500">지식베이스 문서</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statFiles">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="bg-gray-200 p-1 rounded-xl mb-6 flex overflow-x-auto">
+                <button onclick="switchAdminTab('users')" id="tab-users" class="tab-btn active flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap">회원 관리</button>
+                <button onclick="switchAdminTab('knowledge')" id="tab-knowledge" class="tab-btn flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap">지식베이스</button>
+                <button onclick="switchAdminTab('calc-history')" id="tab-calc-history" class="tab-btn flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap">계산 내역</button>
+                <button onclick="switchAdminTab('consult-history')" id="tab-consult-history" class="tab-btn flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap">상담 내역</button>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="panel-users" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800">회원 목록</h3>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="userSearch" placeholder="이름/이메일 검색" class="px-3 py-2 border border-gray-200 rounded-lg text-sm" oninput="searchUsers()">
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">연락처</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">소속</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">가입일</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">권한</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody" class="divide-y divide-gray-100">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                    <p class="text-sm text-gray-500">총 <span id="userCount">0</span>명</p>
+                    <div class="flex space-x-2">
+                        <button onclick="loadUsers(currentPage - 1)" id="prevPageBtn" class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>이전</button>
+                        <span id="pageInfo" class="px-3 py-1 text-sm">1 / 1</span>
+                        <button onclick="loadUsers(currentPage + 1)" id="nextPageBtn" class="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50">다음</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knowledge Base Tab -->
+            <div id="panel-knowledge" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100">
+                    <h3 class="font-semibold text-gray-800 mb-4">지식베이스 관리</h3>
+
+                    <!-- Upload Section -->
+                    <div class="bg-blue-50 rounded-xl p-6 mb-6">
+                        <h4 class="font-medium text-blue-800 mb-3">새 문서 업로드</h4>
+                        <form id="uploadForm" class="space-y-4">
+                            <div class="flex flex-col md:flex-row gap-4">
+                                <div class="flex-1">
+                                    <label class="block text-sm text-gray-600 mb-1">파일 선택</label>
+                                    <input type="file" name="file" required accept=".txt,.md,.pdf" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                                    <p class="text-xs text-gray-500 mt-1">지원 형식: TXT, MD, PDF (최대 10MB)</p>
+                                </div>
+                                <div class="flex-1">
+                                    <label class="block text-sm text-gray-600 mb-1">문서 분류</label>
+                                    <select name="category" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+                                        <option value="law">법령/시행령</option>
+                                        <option value="ruling">판례/유권해석</option>
+                                        <option value="case">상담 사례</option>
+                                        <option value="guide">실무 가이드</option>
+                                        <option value="other">기타</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-600 mb-1">설명 (선택)</label>
+                                <input type="text" name="description" placeholder="문서에 대한 간략한 설명" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            </div>
+                            <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+                                업로드
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Uploaded Files List -->
+                    <h4 class="font-medium text-gray-700 mb-3">업로드된 문서</h4>
+                    <div id="filesList" class="space-y-2">
+                        <p class="text-gray-500 text-sm py-4 text-center">문서가 없습니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calculation History Tab -->
+            <div id="panel-calc-history" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800">계산 내역</h3>
+                    <div class="flex items-center space-x-2">
+                        <input type="date" id="calcDateFrom" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                        <span class="text-gray-400">~</span>
+                        <input type="date" id="calcDateTo" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                        <button onclick="loadCalcHistory()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition">조회</button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">일시</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">사용자</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">자산유형</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">양도가액</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">양도차익</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">납부세액</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calcHistoryBody" class="divide-y divide-gray-100">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Consultation History Tab -->
+            <div id="panel-consult-history" class="hidden bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-800">상담 내역</h3>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="consultSearch" placeholder="검색어 입력" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                        <button onclick="loadConsultHistory()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition">조회</button>
+                    </div>
+                </div>
+                <div id="consultHistoryList" class="divide-y divide-gray-100">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE_URL = window.ENV_API_URL || 'https://your-railway-app.up.railway.app';
+        let currentPage = 1;
+        let totalPages = 1;
+        let allUsers = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAdminAccess();
+        });
+
+        async function checkAdminAccess() {
+            const token = localStorage.getItem('auth_token');
+            const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+
+            if (!token) {
+                window.location.href = './login.html';
+                return;
+            }
+
+            if (!userInfo.is_admin) {
+                document.getElementById('accessDenied').classList.remove('hidden');
+                return;
+            }
+
+            document.getElementById('adminContent').classList.remove('hidden');
+            document.getElementById('adminName').textContent = userInfo.name || '관리자';
+
+            // Load initial data
+            loadStats();
+            loadUsers();
+            loadFiles();
+        }
+
+        async function loadStats() {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                document.getElementById('statUsers').textContent = data.total_users || 0;
+                document.getElementById('statCalcs').textContent = data.today_calculations || 0;
+                document.getElementById('statConsults').textContent = data.today_consultations || 0;
+                document.getElementById('statFiles').textContent = data.total_files || 0;
+            } catch (err) {
+                console.error('Stats load error:', err);
+            }
+        }
+
+        async function loadUsers(page = 1) {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/users?page=${page}&limit=20`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                allUsers = data.users || [];
+                currentPage = data.page || 1;
+                totalPages = data.total_pages || 1;
+
+                renderUsers(allUsers);
+                document.getElementById('userCount').textContent = data.total || 0;
+                document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+                document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+                document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+            } catch (err) {
+                console.error('Users load error:', err);
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = users.map(user => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${user.name || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${user.email}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${user.phone || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${user.company || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${formatDate(user.created_at)}</td>
+                    <td class="px-6 py-4 text-sm">
+                        <span class="px-2 py-1 rounded-full text-xs ${user.is_admin ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}">
+                            ${user.is_admin ? '관리자' : '일반'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                        <button onclick="toggleAdmin(${user.id})" class="text-blue-600 hover:underline mr-2">${user.is_admin ? '권한해제' : '관리자지정'}</button>
+                        <button onclick="deleteUser(${user.id})" class="text-red-600 hover:underline">삭제</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function searchUsers() {
+            const query = document.getElementById('userSearch').value.toLowerCase();
+            const filtered = allUsers.filter(u =>
+                (u.name && u.name.toLowerCase().includes(query)) ||
+                (u.email && u.email.toLowerCase().includes(query))
+            );
+            renderUsers(filtered);
+        }
+
+        async function toggleAdmin(userId) {
+            if (!confirm('관리자 권한을 변경하시겠습니까?')) return;
+            try {
+                const token = localStorage.getItem('auth_token');
+                await fetch(`${API_BASE_URL}/api/admin/users/${userId}/toggle-admin`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                loadUsers(currentPage);
+            } catch (err) {
+                alert('권한 변경 실패: ' + err.message);
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('정말 이 사용자를 삭제하시겠습니까?')) return;
+            try {
+                const token = localStorage.getItem('auth_token');
+                await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                loadUsers(currentPage);
+                loadStats();
+            } catch (err) {
+                alert('삭제 실패: ' + err.message);
+            }
+        }
+
+        async function loadFiles() {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/files`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const files = data.files || [];
+
+                const container = document.getElementById('filesList');
+                if (files.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm py-4 text-center">업로드된 문서가 없습니다.</p>';
+                    return;
+                }
+
+                container.innerHTML = files.map(file => `
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="font-medium text-gray-800">${file.filename}</p>
+                                <p class="text-xs text-gray-500">${file.category} • ${formatDate(file.created_at)}</p>
+                            </div>
+                        </div>
+                        <button onclick="deleteFile(${file.id})" class="px-3 py-1 text-red-600 hover:bg-red-50 rounded text-sm transition">삭제</button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Files load error:', err);
+            }
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/upload`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert('업로드 완료!');
+                    e.target.reset();
+                    loadFiles();
+                    loadStats();
+                } else {
+                    alert('업로드 실패: ' + (data.detail || '알 수 없는 오류'));
+                }
+            } catch (err) {
+                alert('업로드 오류: ' + err.message);
+            }
+        });
+
+        async function deleteFile(fileId) {
+            if (!confirm('이 문서를 삭제하시겠습니까?')) return;
+            try {
+                const token = localStorage.getItem('auth_token');
+                await fetch(`${API_BASE_URL}/api/admin/files/${fileId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                loadFiles();
+                loadStats();
+            } catch (err) {
+                alert('삭제 실패: ' + err.message);
+            }
+        }
+
+        async function loadCalcHistory() {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const dateFrom = document.getElementById('calcDateFrom').value;
+                const dateTo = document.getElementById('calcDateTo').value;
+                let url = `${API_BASE_URL}/api/admin/calc-history?`;
+                if (dateFrom) url += `date_from=${dateFrom}&`;
+                if (dateTo) url += `date_to=${dateTo}&`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const history = data.history || [];
+
+                const tbody = document.getElementById('calcHistoryBody');
+                if (history.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">내역이 없습니다.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = history.map(h => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm text-gray-600">${formatDateTime(h.created_at)}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${h.user_name || '비회원'}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${getAssetTypeName(h.asset_type)}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${formatMoney(h.transfer_price)}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${formatMoney(h.gross_gain)}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-blue-600">${formatMoney(h.total_tax)}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error('Calc history error:', err);
+            }
+        }
+
+        async function loadConsultHistory() {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const search = document.getElementById('consultSearch').value;
+                let url = `${API_BASE_URL}/api/admin/consult-history?`;
+                if (search) url += `search=${encodeURIComponent(search)}&`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                const history = data.history || [];
+
+                const container = document.getElementById('consultHistoryList');
+                if (history.length === 0) {
+                    container.innerHTML = '<p class="px-6 py-8 text-center text-gray-500">내역이 없습니다.</p>';
+                    return;
+                }
+
+                container.innerHTML = history.map(h => `
+                    <div class="p-4 hover:bg-gray-50">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs text-gray-500">${formatDateTime(h.created_at)}</span>
+                            <span class="text-xs text-gray-500">${h.user_name || '비회원'}</span>
+                        </div>
+                        <p class="text-sm font-medium text-gray-800 mb-2">Q: ${truncate(h.query, 100)}</p>
+                        <p class="text-sm text-gray-600">A: ${truncate(h.response, 200)}</p>
+                        <div class="mt-2">
+                            <button onclick="addToRAG(${h.id})" class="text-xs text-purple-600 hover:underline">RAG에 추가</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Consult history error:', err);
+            }
+        }
+
+        async function addToRAG(consultId) {
+            if (!confirm('이 상담 내용을 RAG 지식베이스에 추가하시겠습니까?')) return;
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${API_BASE_URL}/api/admin/consult-history/${consultId}/add-to-rag`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert('RAG에 추가되었습니다!');
+                } else {
+                    alert('추가 실패: ' + (data.detail || '알 수 없는 오류'));
+                }
+            } catch (err) {
+                alert('오류: ' + err.message);
+            }
+        }
+
+        function switchAdminTab(tabName) {
+            const tabs = ['users', 'knowledge', 'calc-history', 'consult-history'];
+            tabs.forEach(t => {
+                document.getElementById(`tab-${t}`).classList.toggle('active', t === tabName);
+                document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tabName);
+            });
+
+            if (tabName === 'calc-history') loadCalcHistory();
+            if (tabName === 'consult-history') loadConsultHistory();
+        }
+
+        function logout() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            window.location.href = './login.html';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleDateString('ko-KR');
+        }
+
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            return new Date(dateStr).toLocaleString('ko-KR');
+        }
+
+        function formatMoney(num) {
+            if (!num) return '0원';
+            return new Intl.NumberFormat('ko-KR').format(num) + '원';
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function getAssetTypeName(type) {
+            const types = {
+                'housing': '주택',
+                'land': '토지',
+                'land_nonbiz': '비사업용 토지',
+                'building': '상가/오피스',
+                'right': '분양권/입주권'
+            };
+            return types[type] || type;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1e40af">
+    <title>회원가입 - 2025 양도소득세 AI 컨설팅</title>
+
+    <script src="./env.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo Section -->
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 bg-white/10 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white mb-2">2025 양도소득세</h1>
+            <p class="text-blue-200">AI 전문 컨설팅 플랫폼</p>
+        </div>
+
+        <!-- Register Card -->
+        <div class="bg-white rounded-2xl shadow-2xl p-8">
+            <h2 class="text-xl font-bold text-gray-800 text-center mb-2" id="pageTitle">회원가입</h2>
+            <p class="text-gray-500 text-sm text-center mb-6" id="pageSubtitle">계정을 만들어 더 많은 기능을 이용하세요</p>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="space-y-4">
+                <!-- Kakao user additional info message -->
+                <div id="kakaoInfoBox" class="hidden bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+                    <p class="text-sm text-yellow-800">
+                        <strong>카카오 계정 연동 중</strong><br>
+                        추가 정보를 입력해 주세요.
+                    </p>
+                </div>
+
+                <div id="emailField">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이메일 <span class="text-red-500">*</span></label>
+                    <input type="email" name="email" id="emailInput" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="example@email.com">
+                </div>
+
+                <div id="passwordFields">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 <span class="text-red-500">*</span></label>
+                        <input type="password" name="password" id="passwordInput" required minlength="8" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="8자 이상 입력">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호 확인 <span class="text-red-500">*</span></label>
+                        <input type="password" name="password_confirm" id="passwordConfirmInput" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="비밀번호 재입력">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이름 <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" id="nameInput" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="홍길동">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">휴대폰 번호 <span class="text-red-500">*</span></label>
+                    <input type="tel" name="phone" id="phoneInput" required class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="010-1234-5678" oninput="formatPhoneNumber(this)">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">소속 (선택)</label>
+                    <input type="text" name="company" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" placeholder="부동산중개사무소명">
+                </div>
+
+                <div class="pt-2">
+                    <label class="flex items-start space-x-3 cursor-pointer">
+                        <input type="checkbox" name="agree_terms" required class="w-5 h-5 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span class="text-sm text-gray-600">
+                            <a href="#" class="text-blue-600 hover:underline">이용약관</a> 및
+                            <a href="#" class="text-blue-600 hover:underline">개인정보처리방침</a>에 동의합니다.
+                        </span>
+                    </label>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 transition transform active:scale-[0.98]">
+                    회원가입
+                </button>
+            </form>
+
+            <div class="mt-6 text-center">
+                <p class="text-gray-500 text-sm">
+                    이미 계정이 있으신가요?
+                    <a href="./login.html" class="text-blue-600 font-medium hover:underline">로그인</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.ENV_API_URL || 'https://your-railway-app.up.railway.app';
+        let kakaoTempData = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isKakao = urlParams.get('kakao') === 'true';
+
+            if (isKakao) {
+                const tempDataStr = localStorage.getItem('kakao_temp_data');
+                if (tempDataStr) {
+                    kakaoTempData = JSON.parse(tempDataStr);
+                    setupKakaoForm();
+                }
+            }
+        });
+
+        function setupKakaoForm() {
+            document.getElementById('pageTitle').textContent = '추가 정보 입력';
+            document.getElementById('pageSubtitle').textContent = '카카오 계정 연동을 완료해 주세요';
+            document.getElementById('kakaoInfoBox').classList.remove('hidden');
+
+            // Pre-fill from Kakao data
+            if (kakaoTempData.email) {
+                document.getElementById('emailInput').value = kakaoTempData.email;
+                document.getElementById('emailInput').readOnly = true;
+                document.getElementById('emailInput').classList.add('bg-gray-100');
+            }
+            if (kakaoTempData.name) {
+                document.getElementById('nameInput').value = kakaoTempData.name;
+            }
+
+            // Hide password fields for Kakao users
+            document.getElementById('passwordFields').classList.add('hidden');
+            document.getElementById('passwordInput').removeAttribute('required');
+            document.getElementById('passwordConfirmInput').removeAttribute('required');
+
+            document.getElementById('submitBtn').textContent = '연동 완료';
+        }
+
+        function formatPhoneNumber(input) {
+            let value = input.value.replace(/[^0-9]/g, '');
+            if (value.length > 3 && value.length <= 7) {
+                value = value.slice(0, 3) + '-' + value.slice(3);
+            } else if (value.length > 7) {
+                value = value.slice(0, 3) + '-' + value.slice(3, 7) + '-' + value.slice(7, 11);
+            }
+            input.value = value;
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+
+            // Password validation (for non-Kakao users)
+            if (!kakaoTempData) {
+                const password = formData.get('password');
+                const passwordConfirm = formData.get('password_confirm');
+                if (password !== passwordConfirm) {
+                    alert('비밀번호가 일치하지 않습니다.');
+                    return;
+                }
+                if (password.length < 8) {
+                    alert('비밀번호는 8자 이상이어야 합니다.');
+                    return;
+                }
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '처리 중...';
+
+            try {
+                let response;
+                if (kakaoTempData) {
+                    // Complete Kakao registration
+                    response = await fetch(`${API_BASE_URL}/api/auth/kakao/complete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            kakao_id: kakaoTempData.kakao_id,
+                            email: formData.get('email'),
+                            name: formData.get('name'),
+                            phone: formData.get('phone'),
+                            company: formData.get('company') || null
+                        })
+                    });
+                } else {
+                    // Regular registration
+                    response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: formData.get('email'),
+                            password: formData.get('password'),
+                            name: formData.get('name'),
+                            phone: formData.get('phone'),
+                            company: formData.get('company') || null
+                        })
+                    });
+                }
+
+                const data = await response.json();
+
+                if (data.access_token) {
+                    localStorage.removeItem('kakao_temp_data');
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('user_info', JSON.stringify(data.user));
+                    alert('회원가입이 완료되었습니다!');
+                    window.location.href = './index.html';
+                } else {
+                    alert('회원가입 실패: ' + (data.detail || '알 수 없는 오류'));
+                }
+            } catch (err) {
+                alert('서버 연결 실패: ' + err.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = kakaoTempData ? '연동 완료' : '회원가입';
+            }
+        });
+    </script>
+</body>
+</html>

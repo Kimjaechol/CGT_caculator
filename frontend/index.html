@@ -71,6 +71,18 @@
                     <button onclick="switchTab('calc')" id="btn-calc-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition tab-active">계산기</button>
                     <button onclick="switchTab('consult')" id="btn-consult-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">AI 상담</button>
                 </nav>
+                <div class="flex items-center space-x-2">
+                    <!-- Guest View -->
+                    <div id="guestButtons" class="flex items-center space-x-2">
+                        <a href="./login.html" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">로그인</a>
+                    </div>
+                    <!-- Logged In View -->
+                    <div id="userButtons" class="hidden flex items-center space-x-2">
+                        <span id="userNameDisplay" class="text-sm text-blue-200"></span>
+                        <a href="./admin.html" id="adminLink" class="hidden px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm transition">관리자</a>
+                        <button onclick="logout()" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition">로그아웃</button>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -616,8 +628,33 @@
             }).from(element).save();
         }
 
+        function checkLoginState() {
+            const token = localStorage.getItem('auth_token');
+            const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
+
+            if (token && userInfo.email) {
+                document.getElementById('guestButtons').classList.add('hidden');
+                document.getElementById('userButtons').classList.remove('hidden');
+                document.getElementById('userNameDisplay').textContent = userInfo.name || userInfo.email;
+
+                if (userInfo.is_admin) {
+                    document.getElementById('adminLink').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('guestButtons').classList.remove('hidden');
+                document.getElementById('userButtons').classList.add('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
+            checkLoginState();
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('[name="transfer_date"]').value = new Date().toISOString().split('T')[0];
+            checkLoginState();
         });
     </script>
 </body>
