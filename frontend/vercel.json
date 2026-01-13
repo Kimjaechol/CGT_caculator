@@ -16,6 +16,14 @@
       "dest": "/$1"
     },
     {
+      "src": "/admin",
+      "dest": "/admin.html"
+    },
+    {
+      "src": "/callback",
+      "dest": "/index.html"
+    },
+    {
       "src": "/(.*\\.html)",
       "dest": "/$1"
     },

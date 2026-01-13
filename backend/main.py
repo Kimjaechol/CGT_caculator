@@ -171,6 +171,21 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+class UserRegisterRequest(BaseModel):
+    email: str = Field(..., description="이메일 (아이디)")
+    phone: str = Field(..., description="전화번호 (비밀번호)")
+    name: str = Field(..., description="이름")
+    birthdate: Optional[str] = Field(None, description="생년월일")
+    gender: Optional[str] = Field(None, description="성별")
+    agree_terms: bool = Field(..., description="약관 동의")
+    agree_privacy: bool = Field(..., description="개인정보처리방침 동의")
+
+
+class UserLoginRequest(BaseModel):
+    email: str = Field(..., description="이메일 (아이디)")
+    phone: str = Field(..., description="전화번호 (비밀번호)")
+
+
 class KnowledgeEntry(BaseModel):
     category: str
     title: str
@@ -290,6 +305,18 @@ def init_user_db():
         pass
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN agree_terms INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN agree_privacy INTEGER DEFAULT 0")
     except:
         pass
 
@@ -876,6 +903,110 @@ async def kakao_callback(req: KakaoAuthRequest):
                 "needs_additional_info": needs_additional_info
             }
         }
+
+
+@app.post("/api/auth/register")
+async def register_user(req: UserRegisterRequest):
+    """일반 회원가입 (이메일 + 전화번호)"""
+    if not req.agree_terms or not req.agree_privacy:
+        raise HTTPException(status_code=400, detail="약관 및 개인정보처리방침에 동의해야 합니다")
+
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+
+    # 이메일 중복 확인
+    cursor.execute("SELECT id FROM users WHERE email = ?", (req.email,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="이미 등록된 이메일입니다")
+
+    # 비밀번호 해싱 (전화번호를 비밀번호로 사용)
+    password_hash = hash_password(req.phone)
+
+    # 사용자 등록
+    cursor.execute("""
+        INSERT INTO users (email, phone, name, birthdate, gender, nickname, password_hash, agree_terms, agree_privacy)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (req.email, req.phone, req.name, req.birthdate, req.gender, req.name, password_hash, 1, 1))
+
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    # JWT 토큰 발급
+    jwt_token = create_access_token({
+        "user_id": user_id,
+        "email": req.email,
+        "nickname": req.name,
+        "role": "user"
+    })
+
+    return {
+        "status": "success",
+        "message": "회원가입이 완료되었습니다",
+        "token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": req.email,
+            "name": req.name,
+            "nickname": req.name,
+            "phone": req.phone,
+            "birthdate": req.birthdate,
+            "gender": req.gender
+        }
+    }
+
+
+@app.post("/api/auth/login")
+async def login_user(req: UserLoginRequest):
+    """일반 로그인 (이메일 + 전화번호)"""
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, email, name, nickname, phone, birthdate, gender, password_hash, profile_image
+        FROM users WHERE email = ?
+    """, (req.email,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=401, detail="등록되지 않은 이메일입니다")
+
+    user_id, email, name, nickname, phone, birthdate, gender, password_hash, profile_image = row
+
+    # 비밀번호 확인 (전화번호)
+    if not password_hash:
+        # 카카오로 가입한 사용자 - 전화번호 직접 비교
+        if phone != req.phone:
+            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다")
+    else:
+        # 일반 회원가입 사용자 - 해시 비교
+        if not verify_password(req.phone, password_hash):
+            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다")
+
+    # JWT 토큰 발급
+    jwt_token = create_access_token({
+        "user_id": user_id,
+        "email": email,
+        "nickname": nickname or name,
+        "role": "user"
+    })
+
+    return {
+        "status": "success",
+        "token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "nickname": nickname or name,
+            "phone": phone,
+            "birthdate": birthdate,
+            "gender": gender,
+            "profile_image": profile_image
+        }
+    }
 
 
 @app.put("/api/user/info")

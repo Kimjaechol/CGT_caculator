@@ -539,18 +539,232 @@
 
     <!-- 로그인 모달 -->
     <div id="loginModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideLoginModal()">
-        <div class="modal-content p-6">
+        <div class="modal-content p-6 max-w-md">
             <div class="text-center mb-6">
                 <h3 class="text-xl font-bold text-gray-800">로그인</h3>
-                <p class="text-sm text-gray-500 mt-2">간편하게 카카오로 로그인하세요</p>
+                <p class="text-sm text-gray-500 mt-2">서비스 이용을 위해 로그인해 주세요</p>
             </div>
-            <button onclick="loginWithKakao()" class="kakao-btn w-full">
+
+            <!-- 일반 로그인 폼 -->
+            <form id="loginForm" class="space-y-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이메일 (아이디)</label>
+                    <input type="email" id="loginEmail" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="이메일 입력" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">전화번호 (비밀번호)</label>
+                    <input type="tel" id="loginPhone" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="010-0000-0000" required>
+                </div>
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">로그인</button>
+            </form>
+
+            <div class="relative my-4">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-500">또는</span></div>
+            </div>
+
+            <button onclick="loginWithKakao()" class="kakao-btn w-full mb-4">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path fill-rule="evenodd" clip-rule="evenodd" d="M10 2C5.58172 2 2 4.91015 2 8.5C2 10.7518 3.38508 12.7297 5.5 13.8711V17.5L9.13434 14.8633C9.4181 14.9205 9.70549 14.95 10 14.95C14.4183 14.95 18 12.0399 18 8.45C18 4.86015 14.4183 2 10 2Z" fill="black"/>
                 </svg>
                 카카오로 로그인
             </button>
-            <p class="text-xs text-gray-400 text-center mt-4">로그인하면 상담 내역이 저장됩니다</p>
+
+            <p class="text-center text-sm text-gray-500">
+                계정이 없으신가요? <button type="button" onclick="showRegisterModal()" class="text-blue-600 hover:underline font-medium">회원가입</button>
+            </p>
+        </div>
+    </div>
+
+    <!-- 회원가입 모달 -->
+    <div id="registerModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideRegisterModal()">
+        <div class="modal-content p-6 max-w-md max-h-[90vh] overflow-y-auto">
+            <div class="text-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">회원가입</h3>
+                <p class="text-sm text-gray-500 mt-2">서비스 이용을 위해 가입해 주세요</p>
+            </div>
+
+            <form id="registerForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이메일 (아이디) <span class="text-red-500">*</span></label>
+                    <input type="email" id="regEmail" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="이메일 입력" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">전화번호 (비밀번호) <span class="text-red-500">*</span></label>
+                    <input type="tel" id="regPhone" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="010-0000-0000" required>
+                    <p class="text-xs text-gray-400 mt-1">로그인 시 비밀번호로 사용됩니다</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이름 <span class="text-red-500">*</span></label>
+                    <input type="text" id="regName" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="실명 입력" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">생년월일</label>
+                    <input type="date" id="regBirthdate" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">성별</label>
+                    <div class="flex space-x-4">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="regGender" value="male" class="w-5 h-5 text-blue-600">
+                            <span class="ml-2 text-gray-700">남성</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input type="radio" name="regGender" value="female" class="w-5 h-5 text-blue-600">
+                            <span class="ml-2 text-gray-700">여성</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 약관 동의 -->
+                <div class="pt-4 border-t border-gray-200 space-y-3">
+                    <div class="flex items-start space-x-2">
+                        <input type="checkbox" id="agreeAll" class="w-5 h-5 mt-0.5 text-blue-600 rounded" onchange="toggleAllAgree()">
+                        <label for="agreeAll" class="text-sm font-medium text-gray-800">전체 동의</label>
+                    </div>
+                    <div class="flex items-start space-x-2 ml-6">
+                        <input type="checkbox" id="agreeTerms" class="w-5 h-5 mt-0.5 text-blue-600 rounded" required>
+                        <label for="agreeTerms" class="text-sm text-gray-600">[필수] 이용약관 동의 <button type="button" onclick="showTermsModal()" class="text-blue-600 hover:underline">(보기)</button></label>
+                    </div>
+                    <div class="flex items-start space-x-2 ml-6">
+                        <input type="checkbox" id="agreePrivacy" class="w-5 h-5 mt-0.5 text-blue-600 rounded" required>
+                        <label for="agreePrivacy" class="text-sm text-gray-600">[필수] 개인정보처리방침 동의 <button type="button" onclick="showPrivacyModal()" class="text-blue-600 hover:underline">(보기)</button></label>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">회원가입</button>
+                <p class="text-center text-sm text-gray-500">
+                    이미 계정이 있으신가요? <button type="button" onclick="showLoginFromRegister()" class="text-blue-600 hover:underline font-medium">로그인</button>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <!-- 이용약관 모달 -->
+    <div id="termsModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideTermsModal()">
+        <div class="modal-content p-6 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-gray-800">이용약관</h3>
+                <button onclick="hideTermsModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="prose prose-sm max-w-none text-gray-700">
+                <h4 class="font-semibold">제1조 (목적)</h4>
+                <p>본 약관은 양도소득세 AI 컨설팅 서비스(이하 "서비스")의 이용조건 및 절차, 회사와 회원 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
+
+                <h4 class="font-semibold mt-4">제2조 (용어의 정의)</h4>
+                <p>1. "서비스"란 회사가 제공하는 양도소득세 계산, AI 세무상담, 대면상담 연결 등의 서비스를 의미합니다.</p>
+                <p>2. "회원"이란 본 약관에 동의하고 회원가입을 완료한 자를 의미합니다.</p>
+
+                <h4 class="font-semibold mt-4">제3조 (서비스의 제공)</h4>
+                <p>1. 회사는 다음과 같은 서비스를 제공합니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>양도소득세 계산 서비스</li>
+                    <li>AI 기반 세무상담 서비스</li>
+                    <li>세무사/변호사 대면상담 연결 서비스</li>
+                </ul>
+                <p>2. 서비스 내용은 회사의 정책에 따라 변경될 수 있습니다.</p>
+
+                <h4 class="font-semibold mt-4">제4조 (회원가입)</h4>
+                <p>1. 회원가입은 이용자가 본 약관에 동의하고 회원정보를 입력하여 완료합니다.</p>
+                <p>2. 회사는 다음의 경우 회원가입을 거부할 수 있습니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>타인의 정보를 도용한 경우</li>
+                    <li>허위 정보를 입력한 경우</li>
+                    <li>기타 회원가입이 부적절하다고 판단되는 경우</li>
+                </ul>
+
+                <h4 class="font-semibold mt-4">제5조 (서비스 이용의 제한)</h4>
+                <p>본 서비스에서 제공하는 계산 결과 및 AI 상담 내용은 참고용이며, 실제 세금 신고 및 납부는 반드시 전문 세무사와 상담 후 진행하시기 바랍니다.</p>
+
+                <h4 class="font-semibold mt-4">제6조 (면책조항)</h4>
+                <p>1. 회사는 서비스를 통해 제공된 정보의 정확성, 완전성, 적시성을 보장하지 않습니다.</p>
+                <p>2. 회원이 서비스를 통해 얻은 정보에 기반한 결정으로 발생한 손해에 대해 회사는 책임을 지지 않습니다.</p>
+
+                <h4 class="font-semibold mt-4">제7조 (분쟁 해결)</h4>
+                <p>서비스 이용과 관련하여 발생한 분쟁에 대해서는 대한민국 법률을 적용하며, 관할 법원은 회사 소재지 법원으로 합니다.</p>
+
+                <p class="mt-4 text-gray-500">시행일: 2025년 1월 1일</p>
+            </div>
+            <button onclick="hideTermsModal()" class="w-full mt-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">닫기</button>
+        </div>
+    </div>
+
+    <!-- 개인정보처리방침 모달 -->
+    <div id="privacyModal" class="modal-backdrop hidden" onclick="if(event.target === this) hidePrivacyModal()">
+        <div class="modal-content p-6 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-gray-800">개인정보처리방침</h3>
+                <button onclick="hidePrivacyModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="prose prose-sm max-w-none text-gray-700">
+                <h4 class="font-semibold">1. 개인정보의 수집 및 이용 목적</h4>
+                <p>회사는 다음의 목적을 위해 개인정보를 수집 및 이용합니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>회원 가입 및 관리: 회원 식별, 서비스 제공, 상담 이력 관리</li>
+                    <li>서비스 제공: 양도소득세 계산, AI 상담, 대면상담 연결</li>
+                    <li>고객 문의 응대: 문의사항 처리, 공지사항 전달</li>
+                </ul>
+
+                <h4 class="font-semibold mt-4">2. 수집하는 개인정보 항목</h4>
+                <p>회사는 다음의 개인정보를 수집합니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>필수항목: 이메일, 전화번호, 이름</li>
+                    <li>선택항목: 생년월일, 성별</li>
+                    <li>카카오 로그인 시: 카카오 계정 정보, 프로필 이미지, 닉네임</li>
+                </ul>
+
+                <h4 class="font-semibold mt-4">3. 개인정보의 보유 및 이용 기간</h4>
+                <p>회원 탈퇴 시까지 또는 법령에 따른 보존 기간까지 보유합니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>회원 정보: 회원 탈퇴 시까지</li>
+                    <li>상담 기록: 3년 (전자상거래법)</li>
+                    <li>접속 로그: 3개월 (통신비밀보호법)</li>
+                </ul>
+
+                <h4 class="font-semibold mt-4">4. 개인정보의 제3자 제공</h4>
+                <p>회사는 원칙적으로 이용자의 동의 없이 개인정보를 제3자에게 제공하지 않습니다. 다만, 대면상담 신청 시 해당 세무사/변호사에게 연락처가 제공될 수 있습니다.</p>
+
+                <h4 class="font-semibold mt-4">5. 개인정보의 파기 절차 및 방법</h4>
+                <p>개인정보는 보유 기간 종료 후 지체 없이 파기합니다.</p>
+                <ul class="list-disc ml-4">
+                    <li>전자적 파일: 복구 불가능한 방법으로 영구 삭제</li>
+                    <li>종이 문서: 분쇄기로 파쇄</li>
+                </ul>
+
+                <h4 class="font-semibold mt-4">6. 이용자의 권리</h4>
+                <p>이용자는 언제든지 자신의 개인정보를 조회, 수정, 삭제할 수 있으며, 회원 탈퇴를 요청할 수 있습니다.</p>
+
+                <h4 class="font-semibold mt-4">7. 개인정보 보호책임자</h4>
+                <p>개인정보 보호에 관한 문의는 아래 연락처로 문의해 주세요.</p>
+                <ul class="list-disc ml-4">
+                    <li>담당자: 개인정보보호 담당</li>
+                    <li>이메일: privacy@lawith.kr</li>
+                </ul>
+
+                <p class="mt-4 text-gray-500">시행일: 2025년 1월 1일</p>
+            </div>
+            <button onclick="hidePrivacyModal()" class="w-full mt-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">닫기</button>
+        </div>
+    </div>
+
+    <!-- 로그인 필요 알림 모달 -->
+    <div id="loginRequiredModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideLoginRequiredModal()">
+        <div class="modal-content p-6 text-center">
+            <div class="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">로그인이 필요합니다</h3>
+            <p class="text-gray-500 mb-6">이 서비스를 이용하려면<br>로그인 또는 회원가입이 필요합니다.</p>
+            <div class="space-y-3">
+                <button onclick="hideLoginRequiredModal(); showLoginModal();" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">로그인하기</button>
+                <button onclick="hideLoginRequiredModal(); showRegisterModal();" class="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">회원가입하기</button>
+            </div>
         </div>
     </div>
 
@@ -768,10 +982,106 @@
 
         function showLoginModal() { document.getElementById('loginModal').classList.remove('hidden'); }
         function hideLoginModal() { document.getElementById('loginModal').classList.add('hidden'); }
+        function showRegisterModal() { hideLoginModal(); document.getElementById('registerModal').classList.remove('hidden'); }
+        function hideRegisterModal() { document.getElementById('registerModal').classList.add('hidden'); }
+        function showLoginFromRegister() { hideRegisterModal(); showLoginModal(); }
+        function showTermsModal() { document.getElementById('termsModal').classList.remove('hidden'); }
+        function hideTermsModal() { document.getElementById('termsModal').classList.add('hidden'); }
+        function showPrivacyModal() { document.getElementById('privacyModal').classList.remove('hidden'); }
+        function hidePrivacyModal() { document.getElementById('privacyModal').classList.add('hidden'); }
+        function showLoginRequiredModal() { document.getElementById('loginRequiredModal').classList.remove('hidden'); }
+        function hideLoginRequiredModal() { document.getElementById('loginRequiredModal').classList.add('hidden'); }
         function showAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.remove('hidden'); }
         function hideAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.add('hidden'); }
         function hideConsultationModal() { document.getElementById('consultationModal').classList.add('hidden'); }
         function hideConsultationSuccessModal() { document.getElementById('consultationSuccessModal').classList.add('hidden'); }
+
+        function toggleAllAgree() {
+            const allChecked = document.getElementById('agreeAll').checked;
+            document.getElementById('agreeTerms').checked = allChecked;
+            document.getElementById('agreePrivacy').checked = allChecked;
+        }
+
+        function requireLogin() {
+            if (!currentUser) {
+                showLoginRequiredModal();
+                return false;
+            }
+            return true;
+        }
+
+        // 일반 로그인 폼 처리
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const phone = document.getElementById('loginPhone').value;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, phone })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateAuthUI();
+                    hideLoginModal();
+                    alert('로그인되었습니다.');
+                } else {
+                    alert(data.detail || '로그인에 실패했습니다.');
+                }
+            } catch (err) {
+                alert('로그인 중 오류가 발생했습니다.');
+            }
+        });
+
+        // 회원가입 폼 처리
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('regEmail').value;
+            const phone = document.getElementById('regPhone').value;
+            const name = document.getElementById('regName').value;
+            const birthdate = document.getElementById('regBirthdate').value;
+            const genderEl = document.querySelector('input[name="regGender"]:checked');
+            const gender = genderEl ? genderEl.value : null;
+            const agreeTerms = document.getElementById('agreeTerms').checked;
+            const agreePrivacy = document.getElementById('agreePrivacy').checked;
+
+            if (!agreeTerms || !agreePrivacy) {
+                alert('필수 약관에 동의해 주세요.');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email, phone, name, birthdate, gender,
+                        agree_terms: agreeTerms,
+                        agree_privacy: agreePrivacy
+                    })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateAuthUI();
+                    hideRegisterModal();
+                    alert('회원가입이 완료되었습니다.');
+                } else {
+                    alert(data.detail || '회원가입에 실패했습니다.');
+                }
+            } catch (err) {
+                alert('회원가입 중 오류가 발생했습니다.');
+            }
+        });
 
         function showConsultationModal(type) {
             const modal = document.getElementById('consultationModal');
@@ -933,6 +1243,7 @@
 
         document.getElementById('calcForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!requireLogin()) return;
             const form = e.target;
             const formData = new FormData(form);
             const btn = document.getElementById('calcBtn');
@@ -1024,6 +1335,7 @@
 
         document.getElementById('chatForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!requireLogin()) return;
             const input = document.getElementById('userQuery');
             const query = input.value.trim();
             if (!query) return;
