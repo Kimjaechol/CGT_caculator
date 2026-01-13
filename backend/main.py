@@ -85,6 +85,8 @@ PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 
 # Railway Volume 경로 설정 (/data에 마운트됨)
 # Volume이 마운트되어 있으면 /data 사용, 아니면 현재 디렉토리 사용
+import shutil
+
 def get_data_dir():
     """데이터 저장 디렉토리 결정"""
     # 환경 변수로 명시적 설정
@@ -96,7 +98,51 @@ def get_data_dir():
     # 로컬 개발 환경
     return "."
 
+def migrate_from_tmp_to_volume():
+    """
+    /tmp/에 있는 기존 DB 파일을 /data/ Volume으로 마이그레이션
+    - Volume이 마운트되어 있고 (/data 존재)
+    - /tmp/에 기존 파일이 있고
+    - /data/에는 해당 파일이 없는 경우 복사
+    """
+    if not (os.path.exists("/data") and os.path.isdir("/data")):
+        print("[Migration] Volume not mounted, skipping migration")
+        return
+
+    files_to_migrate = [
+        ("tax_knowledge.db", "/tmp/tax_knowledge.db", "/data/tax_knowledge.db"),
+        ("users.db", "/tmp/users.db", "/data/users.db"),
+    ]
+
+    for name, src, dst in files_to_migrate:
+        if os.path.exists(src):
+            if not os.path.exists(dst):
+                try:
+                    shutil.copy2(src, dst)
+                    print(f"[Migration] SUCCESS: {src} -> {dst}")
+                except Exception as e:
+                    print(f"[Migration] FAILED: {src} -> {dst}: {e}")
+            else:
+                # 두 파일 모두 존재하면 크기 비교해서 더 큰 것 사용
+                src_size = os.path.getsize(src)
+                dst_size = os.path.getsize(dst)
+                print(f"[Migration] Both exist - {name}: /tmp ({src_size} bytes) vs /data ({dst_size} bytes)")
+                if src_size > dst_size:
+                    try:
+                        # 백업 후 복사
+                        shutil.copy2(dst, dst + ".backup")
+                        shutil.copy2(src, dst)
+                        print(f"[Migration] Replaced with larger file from /tmp")
+                    except Exception as e:
+                        print(f"[Migration] Replace failed: {e}")
+        else:
+            print(f"[Migration] Source not found: {src}")
+
 DATA_DIR = get_data_dir()
+
+# Volume으로 마이그레이션 실행
+migrate_from_tmp_to_volume()
+
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "tax_knowledge.db"))
 USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(DATA_DIR, "users.db"))
 
