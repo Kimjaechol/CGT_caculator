@@ -83,9 +83,27 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 # Perplexity AI API 설정
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 
-# Railway에서는 /tmp 디렉토리 사용
-DB_PATH = os.getenv("DB_PATH", "/tmp/tax_knowledge.db")
-USER_DB_PATH = os.getenv("USER_DB_PATH", "/tmp/users.db")
+# Railway Volume 경로 설정 (/data에 마운트됨)
+# Volume이 마운트되어 있으면 /data 사용, 아니면 현재 디렉토리 사용
+def get_data_dir():
+    """데이터 저장 디렉토리 결정"""
+    # 환경 변수로 명시적 설정
+    if os.getenv("DATA_DIR"):
+        return os.getenv("DATA_DIR")
+    # Railway Volume이 마운트되어 있는지 확인
+    if os.path.exists("/data") and os.path.isdir("/data"):
+        return "/data"
+    # 로컬 개발 환경
+    return "."
+
+DATA_DIR = get_data_dir()
+DB_PATH = os.getenv("DB_PATH", os.path.join(DATA_DIR, "tax_knowledge.db"))
+USER_DB_PATH = os.getenv("USER_DB_PATH", os.path.join(DATA_DIR, "users.db"))
+
+# 로그 출력
+print(f"[Storage] DATA_DIR: {DATA_DIR}")
+print(f"[Storage] DB_PATH: {DB_PATH}")
+print(f"[Storage] USER_DB_PATH: {USER_DB_PATH}")
 
 # 비밀번호 해싱 함수
 def hash_password(password: str) -> str:
