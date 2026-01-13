@@ -157,9 +157,20 @@
                         <div class="card-header">텍스트/마크다운 파일 업로드 (FTS5)</div>
                         <div class="card-body">
                             <p class="text-sm text-gray-500 mb-4">
-                                .txt, .md 파일을 업로드하면 내용이 FTS5 키워드 검색 DB에 저장됩니다.
-                                파일명에서 카테고리를 추출합니다 (예: 비과세_일시적2주택.md → 카테고리: 비과세)
+                                .txt, .md 파일을 업로드하면 FTS5 키워드 검색 DB에 저장되고, AI가 자동으로 키워드를 추출합니다.
                             </p>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">업로드할 카테고리 선택</label>
+                                <select id="uploadCategory" class="input">
+                                    <option value="비과세">비과세</option>
+                                    <option value="세율">세율</option>
+                                    <option value="공제">공제</option>
+                                    <option value="감면">감면</option>
+                                    <option value="신고">신고</option>
+                                    <option value="2025">2025</option>
+                                    <option value="일반">일반</option>
+                                </select>
+                            </div>
                             <div id="fts5UploadZone" class="upload-zone" onclick="document.getElementById('fts5FileInput').click()">
                                 <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
@@ -175,14 +186,23 @@
 
                 <!-- 지식 목록 -->
                 <div class="card mt-6">
-                    <div class="card-header flex items-center justify-between">
+                    <div class="card-header flex flex-wrap items-center justify-between gap-2">
                         <span>지식 데이터베이스 목록</span>
-                        <button onclick="loadKnowledge()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="reExtractSelectedKeywords()" id="reExtractSelectedBtn" class="btn text-sm bg-purple-500 text-white hover:bg-purple-600 hidden">
+                                선택 항목 키워드 재추출
+                            </button>
+                            <button onclick="reExtractAllKeywords()" class="btn text-sm bg-purple-100 text-purple-700 hover:bg-purple-200">
+                                전체 키워드 재추출
+                            </button>
+                            <button onclick="loadKnowledge()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table>
                             <thead>
                                 <tr>
+                                    <th class="w-10"><input type="checkbox" id="selectAllKnowledge" onchange="toggleSelectAll(this)" class="rounded"></th>
                                     <th>ID</th>
                                     <th>카테고리</th>
                                     <th>제목</th>
@@ -192,12 +212,53 @@
                                 </tr>
                             </thead>
                             <tbody id="knowledgeTableBody">
-                                <tr><td colspan="6" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                                <tr><td colspan="7" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
+
+    <!-- 지식 편집 모달 -->
+    <div id="editKnowledgeModal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-gray-800">지식 항목 편집</h3>
+                <button onclick="hideEditModal()" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+            <form id="editKnowledgeForm" class="space-y-4">
+                <input type="hidden" id="editKnowledgeId">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
+                    <select id="editKnowledgeCategory" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="비과세">비과세</option>
+                        <option value="세율">세율</option>
+                        <option value="공제">공제</option>
+                        <option value="감면">감면</option>
+                        <option value="신고">신고</option>
+                        <option value="2025">2025</option>
+                        <option value="일반">일반</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">제목</label>
+                    <input type="text" id="editKnowledgeTitle" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">내용</label>
+                    <textarea id="editKnowledgeContent" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 h-48" required></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">키워드 (공백으로 구분)</label>
+                    <input type="text" id="editKnowledgeKeywords" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">저장</button>
+                    <button type="button" onclick="hideEditModal()" class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition">취소</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
             <!-- Gemini File Search 탭 -->
             <div id="tab-gemini" class="tab-content hidden">
@@ -480,59 +541,101 @@
             document.getElementById('dashboard').classList.remove('hidden');
         }
 
+        // 탭별 데이터 로드 상태 추적
+        const tabDataLoaded = {
+            knowledge: false,
+            gemini: false,
+            users: false,
+            consultations: false,
+            'meeting-requests': false,
+            uploads: false
+        };
+
         function loadAllData() {
+            // 현재 활성 탭의 데이터만 로드 (기본: knowledge)
             loadKnowledge();
-            loadGeminiStores();
-            loadUsers();
-            loadConsultations();
-            loadMeetingRequests();
-            loadUploads();
+            tabDataLoaded.knowledge = true;
         }
 
-        // 탭 전환
+        // 탭 전환 (필요시 데이터 로드)
         function switchAdminTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.remove('hidden');
             document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            // 해당 탭 데이터가 아직 로드되지 않았으면 로드
+            if (!tabDataLoaded[tab]) {
+                tabDataLoaded[tab] = true;
+                switch(tab) {
+                    case 'knowledge': loadKnowledge(); break;
+                    case 'gemini': loadGeminiStores(); break;
+                    case 'users': loadUsers(); break;
+                    case 'consultations': loadConsultations(); break;
+                    case 'meeting-requests': loadMeetingRequests(); break;
+                    case 'uploads': loadUploads(); break;
+                }
+            }
         }
 
-        // API 요청 헬퍼
-        async function adminFetch(url, options = {}) {
+        // API 요청 헬퍼 (타임아웃 포함)
+        async function adminFetch(url, options = {}, timeout = 10000) {
             const headers = { ...options.headers, 'Authorization': `Bearer ${adminToken}` };
-            const res = await fetch(url, { ...options, headers });
-            if (res.status === 401 || res.status === 403) {
-                adminLogout();
-                showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
-                throw new Error('Unauthorized');
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                const res = await fetch(url, { ...options, headers, signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (res.status === 401 || res.status === 403) {
+                    adminLogout();
+                    showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
+                    throw new Error('Unauthorized');
+                }
+                return res;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                if (err.name === 'AbortError') {
+                    throw new Error('요청 시간 초과');
+                }
+                throw err;
             }
-            return res;
         }
 
         // 지식 DB 관리
         async function loadKnowledge() {
+            const tbody = document.getElementById('knowledgeTableBody');
+            // 전체 선택 체크박스 초기화
+            document.getElementById('selectAllKnowledge').checked = false;
+            updateSelectedCount();
+
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge`);
                 const data = await res.json();
-                const tbody = document.getElementById('knowledgeTableBody');
                 if (data.entries && data.entries.length > 0) {
                     tbody.innerHTML = data.entries.map(e => `
                         <tr>
+                            <td><input type="checkbox" class="knowledge-checkbox rounded" value="${e.id}" onchange="updateSelectedCount()"></td>
                             <td>${e.id}</td>
                             <td><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">${e.category}</span></td>
                             <td class="font-medium">${e.title}</td>
                             <td class="max-w-xs truncate" title="${e.content}">${e.content.substring(0, 100)}...</td>
-                            <td class="text-gray-500 text-xs">${e.keywords}</td>
-                            <td>
+                            <td class="text-gray-500 text-xs max-w-xs truncate" title="${e.keywords}">${e.keywords || '-'}</td>
+                            <td class="whitespace-nowrap">
+                                <button onclick="reExtractSingleKeyword(${e.id})" class="text-purple-500 hover:text-purple-700 text-sm mr-1" title="키워드 재추출">🔄</button>
+                                <button onclick="showEditModal(${e.id})" class="text-blue-500 hover:text-blue-700 text-sm mr-1">편집</button>
                                 <button onclick="deleteKnowledge(${e.id})" class="text-red-500 hover:text-red-700 text-sm">삭제</button>
                             </td>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">등록된 지식이 없습니다</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">등록된 지식이 없습니다</td></tr>';
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
@@ -573,43 +676,244 @@
             }
         }
 
-        // FTS5 파일 업로드
+        // 키워드 재추출 관련 함수들
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox:checked');
+            const btn = document.getElementById('reExtractSelectedBtn');
+            if (checkboxes.length > 0) {
+                btn.classList.remove('hidden');
+                btn.textContent = `선택 항목 키워드 재추출 (${checkboxes.length}개)`;
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function getSelectedIds() {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        async function reExtractSingleKeyword(id) {
+            if (!confirm('이 항목의 키워드를 AI로 재추출하시겠습니까?')) return;
+
+            showToast('키워드 추출 중...', 'success');
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}/re-extract-keywords`, {
+                    method: 'POST'
+                }, 30000);
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`키워드 ${data.keyword_count}개 추출 완료`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            }
+        }
+
+        async function reExtractSelectedKeywords() {
+            const ids = getSelectedIds();
+            if (ids.length === 0) {
+                showToast('선택된 항목이 없습니다', 'error');
+                return;
+            }
+
+            if (!confirm(`선택한 ${ids.length}개 항목의 키워드를 AI로 재추출하시겠습니까?\n(시간이 걸릴 수 있습니다)`)) return;
+
+            const btn = document.getElementById('reExtractSelectedBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '추출 중...';
+
+            try {
+                const formData = new FormData();
+                formData.append('entry_ids', ids.join(','));
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/re-extract-keywords-bulk`, {
+                    method: 'POST',
+                    body: formData
+                }, 120000); // 2분 타임아웃
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`${data.success_count}개 성공, ${data.error_count}개 실패`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function reExtractAllKeywords() {
+            if (!confirm('모든 항목의 키워드를 AI로 재추출하시겠습니까?\n⚠️ 항목 수에 따라 시간이 오래 걸릴 수 있습니다.')) return;
+
+            const btn = document.querySelector('button[onclick="reExtractAllKeywords()"]');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '전체 추출 중...';
+
+            try {
+                const formData = new FormData();
+                formData.append('entry_ids', 'all');
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/re-extract-keywords-bulk`, {
+                    method: 'POST',
+                    body: formData
+                }, 300000); // 5분 타임아웃
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`전체 키워드 재추출 완료: ${data.success_count}개 성공, ${data.error_count}개 실패`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // 지식 편집 모달 함수들
+        async function showEditModal(id) {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`);
+                const data = await res.json();
+                if (data.entry) {
+                    document.getElementById('editKnowledgeId').value = data.entry.id;
+                    document.getElementById('editKnowledgeCategory').value = data.entry.category || '일반';
+                    document.getElementById('editKnowledgeTitle').value = data.entry.title || '';
+                    document.getElementById('editKnowledgeContent').value = data.entry.content || '';
+                    document.getElementById('editKnowledgeKeywords').value = data.entry.keywords || '';
+                    document.getElementById('editKnowledgeModal').classList.remove('hidden');
+                } else {
+                    showToast('지식 항목을 찾을 수 없습니다', 'error');
+                }
+            } catch (err) {
+                showToast('지식 항목을 불러오는 중 오류가 발생했습니다', 'error');
+            }
+        }
+
+        function hideEditModal() {
+            document.getElementById('editKnowledgeModal').classList.add('hidden');
+        }
+
+        // 편집 폼 제출 핸들러
+        document.getElementById('editKnowledgeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editKnowledgeId').value;
+            const formData = new FormData();
+            formData.append('category', document.getElementById('editKnowledgeCategory').value);
+            formData.append('title', document.getElementById('editKnowledgeTitle').value);
+            formData.append('content', document.getElementById('editKnowledgeContent').value);
+            formData.append('keywords', document.getElementById('editKnowledgeKeywords').value);
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('지식 항목이 수정되었습니다', 'success');
+                    hideEditModal();
+                    loadKnowledge();
+                } else {
+                    showToast(data.detail || '수정 실패', 'error');
+                }
+            } catch (err) {
+                showToast('수정 중 오류가 발생했습니다', 'error');
+            }
+        });
+
+        // FTS5 파일 업로드 (AI 키워드 자동 추출)
         async function uploadFTS5Files(files) {
             const statusDiv = document.getElementById('fts5UploadStatus');
+            const selectedCategory = document.getElementById('uploadCategory').value;
+
             statusDiv.classList.remove('hidden');
-            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 중...</div>';
+            statusDiv.innerHTML = `<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 및 AI 키워드 추출 중... (카테고리: ${selectedCategory})</div>`;
+
+            const uploadResults = [];
 
             for (const file of files) {
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('category', selectedCategory);
 
                 try {
                     const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/upload`, {
                         method: 'POST',
                         body: formData
-                    });
+                    }, 30000); // AI 추출 시간을 위해 30초 타임아웃
                     const data = await res.json();
                     if (data.status === 'success') {
-                        showToast(`${file.name} 업로드 완료`, 'success');
+                        uploadResults.push({
+                            filename: file.name,
+                            entry_id: data.entry_id,
+                            keywords: data.extracted_keywords,
+                            keyword_count: data.keyword_count
+                        });
+                        showToast(`${file.name} 업로드 완료 (키워드 ${data.keyword_count}개 추출)`, 'success');
                     } else {
                         showToast(`${file.name}: ${data.message}`, 'error');
                     }
                 } catch (err) {
-                    showToast(`${file.name} 업로드 실패`, 'error');
+                    showToast(`${file.name} 업로드 실패: ${err.message}`, 'error');
                 }
             }
 
-            statusDiv.innerHTML = '<p class="text-green-600">업로드 완료</p>';
+            // 업로드 결과 표시 (키워드 편집 버튼 포함)
+            if (uploadResults.length > 0) {
+                statusDiv.innerHTML = `
+                    <div class="space-y-3">
+                        <p class="text-green-600 font-medium">업로드 완료!</p>
+                        ${uploadResults.map(r => `
+                            <div class="p-3 bg-gray-50 rounded-lg border">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-medium text-sm">${r.filename}</span>
+                                    <button onclick="showEditModal(${r.entry_id})" class="text-blue-500 hover:text-blue-700 text-sm">키워드 편집</button>
+                                </div>
+                                <p class="text-xs text-gray-600">추출된 키워드 (${r.keyword_count}개):</p>
+                                <p class="text-xs text-gray-500 mt-1">${r.keywords || '없음'}</p>
+                            </div>
+                        `).join('')}
+                        <p class="text-xs text-gray-400 mt-2">키워드는 목록에서 편집 버튼을 클릭하여 언제든 수정할 수 있습니다.</p>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = '<p class="text-red-600">업로드 실패</p>';
+            }
+
             loadKnowledge();
-            loadUploads();
+            tabDataLoaded.uploads = false; // 업로드 탭 새로고침 필요
         }
 
         // Gemini File Search
         async function loadGeminiStores() {
+            const container = document.getElementById('geminiStoresList');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/gemini/stores`);
                 const data = await res.json();
-                const container = document.getElementById('geminiStoresList');
                 if (data.stores && data.stores.length > 0) {
                     container.innerHTML = data.stores.map(s => `
                         <div class="p-3 bg-gray-50 rounded-lg">
@@ -623,6 +927,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                container.innerHTML = `<p class="text-red-400 text-sm">데이터 로드 실패: ${err.message}</p>`;
             }
         }
 
@@ -660,10 +965,10 @@
 
         // 회원 관리
         async function loadUsers() {
+            const tbody = document.getElementById('usersTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/users`);
                 const data = await res.json();
-                const tbody = document.getElementById('usersTableBody');
                 if (data.users && data.users.length > 0) {
                     tbody.innerHTML = data.users.map(u => `
                         <tr>
@@ -685,15 +990,16 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
         // 상담 내역
         async function loadConsultations() {
+            const tbody = document.getElementById('consultationsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/consultations?limit=100`);
                 const data = await res.json();
-                const tbody = document.getElementById('consultationsTableBody');
                 if (data.consultations && data.consultations.length > 0) {
                     tbody.innerHTML = data.consultations.map(c => `
                         <tr>
@@ -711,6 +1017,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
@@ -741,10 +1048,10 @@
 
         // 업로드 기록
         async function loadUploads() {
+            const tbody = document.getElementById('uploadsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/uploads`);
                 const data = await res.json();
-                const tbody = document.getElementById('uploadsTableBody');
                 if (data.files && data.files.length > 0) {
                     tbody.innerHTML = data.files.map(f => `
                         <tr>
@@ -762,15 +1069,16 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
         // 대면상담 신청
         async function loadMeetingRequests() {
+            const tbody = document.getElementById('meetingRequestsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/consultation-requests?limit=100`);
                 const data = await res.json();
-                const tbody = document.getElementById('meetingRequestsTableBody');
                 const statusFilter = document.getElementById('meetingStatusFilter').value;
 
                 let requests = data.requests || [];
@@ -805,6 +1113,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 

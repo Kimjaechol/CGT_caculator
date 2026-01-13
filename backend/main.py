@@ -415,6 +415,77 @@ def init_user_db():
 
 
 # ============================================
+# === AI 키워드 자동 추출 ===
+# ============================================
+async def extract_keywords_with_ai(content: str, title: str = "") -> str:
+    """
+    AI를 사용하여 세무 문서에서 핵심 키워드 15~25개 자동 추출
+    추출 기준:
+    1. 반복 빈도가 높은 법률용어
+    2. 제목과 관련된 유사어/동의어
+    3. 조문 번호 및 법령명
+    4. 조문에 포함된 법률용어와 의미적으로 관련된 개념
+    """
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        # API 키가 없으면 제목에서 기본 키워드 추출
+        return title.replace('_', ' ')
+
+    try:
+        # 내용이 너무 길면 앞부분만 사용 (토큰 절약)
+        truncated_content = content[:10000] if len(content) > 10000 else content
+
+        prompt = f"""당신은 한국 세무/세법 전문가입니다. 아래 세무 관련 문서를 분석하여 FTS5 검색에 최적화된 핵심 키워드 15~25개를 추출해주세요.
+
+## 키워드 추출 기준 (중요도 순):
+
+### 1. 반복 빈도가 높은 법률용어 (최우선)
+- 문서 내에서 여러 번 반복되는 핵심 법률용어를 우선 추출
+- 예: 비과세, 양도소득세, 장기보유특별공제, 취득가액, 필요경비
+
+### 2. 제목 관련 유사어/동의어
+- 문서 제목에 포함된 키워드와 의미적으로 관련된 용어
+- 예: 제목이 "1세대1주택"이면 → 1가구1주택, 단독주택, 본인주택 등 포함
+
+### 3. 조문 번호 및 법령명
+- 소득세법, 시행령, 시행규칙 + 조문번호 (예: 제89조, 제154조)
+- 법령 약칭도 포함 (예: 소법, 소령, 조특법)
+
+### 4. 법조문 관련 핵심 개념
+- 조문에서 규정하는 요건, 기준, 금액 등
+- 예: 12억원, 2년보유, 거주요건, 보유기간, 실거주
+
+### 5. 상위/하위 개념 및 관련 범주
+- 해당 세목과 관련된 상위/하위 법률 개념
+- 예: 양도소득 → 양도차익, 취득시기, 양도시기, 기준시가
+
+## 문서 제목: {title}
+
+## 문서 내용:
+{truncated_content}
+
+## 출력 형식:
+- 키워드만 공백으로 구분하여 한 줄로 출력 (설명 없이)
+- 중복 없이 15~25개
+- 예시: 비과세 1세대1주택 1가구1주택 양도소득세 12억원 2년보유 거주요건 소득세법 제89조 장기보유특별공제 취득가액 양도차익 보유기간 실거주 고가주택"""
+
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        response = model.generate_content(prompt)
+
+        if response and response.text:
+            # 추출된 키워드 정리 (줄바꿈 제거, 중복 제거)
+            keywords = response.text.strip().replace('\n', ' ').replace(',', ' ')
+            # 중복 제거
+            keyword_list = list(dict.fromkeys(keywords.split()))
+            return ' '.join(keyword_list[:25])  # 최대 25개
+
+        return title.replace('_', ' ')
+
+    except Exception as e:
+        print(f"AI 키워드 추출 오류: {e}")
+        return title.replace('_', ' ')
+
+
+# ============================================
 # === 검색 파이프라인 2.0 (Search Pipeline 2.0) ===
 # ============================================
 # 3가지 검색을 병렬 실행:
@@ -1563,21 +1634,27 @@ async def kakao_callback(req: KakaoAuthRequest):
         raise HTTPException(status_code=500, detail="카카오 설정이 완료되지 않았습니다")
 
     async with httpx.AsyncClient() as client:
-        # 토큰 발급
+        # 토큰 발급 요청 데이터 구성
+        token_data = {
+            "grant_type": "authorization_code",
+            "client_id": KAKAO_CLIENT_ID,
+            "redirect_uri": KAKAO_REDIRECT_URI,
+            "code": req.code,
+        }
+        # Client Secret이 있는 경우에만 추가 (선택사항)
+        if KAKAO_CLIENT_SECRET:
+            token_data["client_secret"] = KAKAO_CLIENT_SECRET
+
         token_response = await client.post(
             "https://kauth.kakao.com/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "client_id": KAKAO_CLIENT_ID,
-                "client_secret": KAKAO_CLIENT_SECRET,
-                "redirect_uri": KAKAO_REDIRECT_URI,
-                "code": req.code,
-            },
+            data=token_data,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
 
         if token_response.status_code != 200:
-            raise HTTPException(status_code=400, detail="카카오 토큰 발급 실패")
+            error_detail = token_response.json() if token_response.text else {}
+            print(f"카카오 토큰 오류: {error_detail}")
+            raise HTTPException(status_code=400, detail=f"카카오 토큰 발급 실패: {error_detail.get('error_description', '알 수 없는 오류')}")
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
@@ -1943,12 +2020,159 @@ async def delete_knowledge_entry(entry_id: int, admin: dict = Depends(require_ad
     return {"status": "success"}
 
 
+@app.put("/api/admin/knowledge/{entry_id}")
+async def update_knowledge_entry(
+    entry_id: int,
+    category: str = Form(...),
+    title: str = Form(...),
+    content: str = Form(...),
+    keywords: str = Form(""),
+    admin: dict = Depends(require_admin)
+):
+    """지식 데이터베이스 항목 수정"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE tax_knowledge
+        SET category = ?, title = ?, content = ?, keywords = ?
+        WHERE rowid = ?
+    """, (category, title, content, keywords, entry_id))
+    conn.commit()
+    conn.close()
+
+    return {"status": "success", "message": "항목이 수정되었습니다."}
+
+
+@app.get("/api/admin/knowledge/{entry_id}")
+async def get_knowledge_entry(entry_id: int, admin: dict = Depends(require_admin)):
+    """지식 데이터베이스 항목 조회"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, category, title, content, keywords FROM tax_knowledge WHERE rowid = ?", (entry_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다")
+
+    return {
+        "id": row[0],
+        "category": row[1],
+        "title": row[2],
+        "content": row[3],
+        "keywords": row[4]
+    }
+
+
+@app.post("/api/admin/knowledge/{entry_id}/re-extract-keywords")
+async def re_extract_keywords_single(entry_id: int, admin: dict = Depends(require_admin)):
+    """단일 지식 항목의 키워드를 AI로 재추출"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, title, content FROM tax_knowledge WHERE rowid = ?", (entry_id,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다")
+
+    entry_id, title, content = row
+
+    # AI 키워드 추출
+    new_keywords = await extract_keywords_with_ai(content, title)
+
+    # 키워드 업데이트
+    cursor.execute("UPDATE tax_knowledge SET keywords = ? WHERE rowid = ?", (new_keywords, entry_id))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "entry_id": entry_id,
+        "title": title,
+        "new_keywords": new_keywords,
+        "keyword_count": len(new_keywords.split()) if new_keywords else 0
+    }
+
+
+@app.post("/api/admin/knowledge/re-extract-keywords-bulk")
+async def re_extract_keywords_bulk(
+    entry_ids: str = Form(None),  # 콤마로 구분된 ID 목록 또는 "all"
+    admin: dict = Depends(require_admin)
+):
+    """
+    다수/전체 지식 항목의 키워드를 AI로 재추출
+    entry_ids: 콤마로 구분된 ID 목록 (예: "1,2,3") 또는 "all" (전체)
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # 대상 항목 선택
+    if entry_ids == "all" or not entry_ids:
+        cursor.execute("SELECT rowid, title, content FROM tax_knowledge")
+    else:
+        id_list = [int(x.strip()) for x in entry_ids.split(',') if x.strip().isdigit()]
+        if not id_list:
+            conn.close()
+            return {"status": "error", "message": "유효한 ID가 없습니다"}
+        placeholders = ','.join(['?' for _ in id_list])
+        cursor.execute(f"SELECT rowid, title, content FROM tax_knowledge WHERE rowid IN ({placeholders})", id_list)
+
+    rows = cursor.fetchall()
+
+    if not rows:
+        conn.close()
+        return {"status": "error", "message": "처리할 항목이 없습니다"}
+
+    results = []
+    success_count = 0
+    error_count = 0
+
+    for row in rows:
+        entry_id, title, content = row
+        try:
+            # AI 키워드 추출
+            new_keywords = await extract_keywords_with_ai(content, title)
+
+            # 키워드 업데이트
+            cursor.execute("UPDATE tax_knowledge SET keywords = ? WHERE rowid = ?", (new_keywords, entry_id))
+
+            results.append({
+                "entry_id": entry_id,
+                "title": title,
+                "keywords": new_keywords,
+                "keyword_count": len(new_keywords.split()) if new_keywords else 0,
+                "status": "success"
+            })
+            success_count += 1
+        except Exception as e:
+            results.append({
+                "entry_id": entry_id,
+                "title": title,
+                "error": str(e),
+                "status": "error"
+            })
+            error_count += 1
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "total": len(rows),
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
+    }
+
+
 @app.post("/api/admin/knowledge/upload")
 async def upload_knowledge_file(
     file: UploadFile = File(...),
+    category: str = Form(None),  # 관리자가 선택한 카테고리
     admin: dict = Depends(require_admin)
 ):
-    """마크다운/텍스트 파일을 FTS5에 업로드"""
+    """마크다운/텍스트 파일을 FTS5에 업로드 (AI 키워드 자동 추출)"""
     filename = file.filename
     content = await file.read()
 
@@ -1961,18 +2185,22 @@ async def upload_knowledge_file(
             "message": "텍스트 파일만 FTS5에 업로드할 수 있습니다. 바이너리 파일은 Gemini File Search를 사용해주세요."
         }
 
+    # 카테고리: 관리자가 선택한 값 사용 (없으면 기본값 '일반')
+    if not category:
+        category = "일반"
+    title = filename.rsplit('.', 1)[0]  # 확장자 제거
+
+    # AI 키워드 자동 추출 (Gemini 사용)
+    keywords = await extract_keywords_with_ai(text_content, title)
+
     # FTS5에 저장
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
-    # 파일명에서 카테고리 추출 (예: "비과세_일시적2주택.md" -> "비과세")
-    category = filename.split('_')[0] if '_' in filename else "일반"
-    title = filename.rsplit('.', 1)[0]  # 확장자 제거
-
     cursor.execute(
         "INSERT INTO tax_knowledge (category, title, content, keywords) VALUES (?, ?, ?, ?)",
-        (category, title, text_content, title.replace('_', ' '))
+        (category, title, text_content, keywords)
     )
+    entry_id = cursor.lastrowid
     conn.commit()
     conn.close()
 
@@ -1986,7 +2214,13 @@ async def upload_knowledge_file(
     conn.commit()
     conn.close()
 
-    return {"status": "success", "message": f"'{filename}'이(가) FTS5에 추가되었습니다."}
+    return {
+        "status": "success",
+        "message": f"'{filename}'이(가) FTS5에 추가되었습니다.",
+        "entry_id": entry_id,
+        "extracted_keywords": keywords,
+        "keyword_count": len(keywords.split()) if keywords else 0
+    }
 
 
 @app.post("/api/admin/gemini/upload")
