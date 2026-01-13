@@ -436,6 +436,64 @@ def search_knowledge(query: str, limit: int = 5) -> str:
         return f"검색 오류: {str(e)}"
 
 
+async def search_gemini_file_store(query: str) -> str:
+    """Gemini File Search Store를 사용한 의미론적 검색 (RAG)"""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        return ""
+
+    try:
+        # google-genai 패키지 사용 (File Search API)
+        from google import genai as genai_new
+        from google.genai import types
+
+        client = genai_new.Client(api_key=GEMINI_API_KEY)
+
+        # 저장된 File Search Store 목록 조회
+        conn = sqlite3.connect(USER_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT store_name FROM file_search_stores ORDER BY created_at DESC LIMIT 5")
+        stores = cursor.fetchall()
+        conn.close()
+
+        if not stores:
+            return ""
+
+        all_results = []
+
+        for (store_name,) in stores:
+            try:
+                # File Search Store에서 검색
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=query,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(
+                            file_search=types.FileSearch(
+                                file_search_store=store_name
+                            )
+                        )],
+                        temperature=0.1,
+                        max_output_tokens=2048
+                    )
+                )
+
+                if response.text:
+                    all_results.append(f"[Gemini File Search 결과]\n{response.text}")
+
+            except Exception as e:
+                print(f"File Search Store '{store_name}' 검색 실패: {e}")
+                continue
+
+        return "\n\n".join(all_results) if all_results else ""
+
+    except ImportError:
+        # google-genai 패키지가 없으면 빈 결과 반환
+        return ""
+    except Exception as e:
+        print(f"Gemini File Search 오류: {e}")
+        return ""
+
+
 # === JWT 토큰 관리 ===
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -664,12 +722,21 @@ def calculate_cgt(data: CalcRequest) -> Dict[str, Any]:
 
 # === AI 상담 ===
 async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_id: int = None) -> str:
+    # FTS5 키워드 검색
     knowledge = search_knowledge(query)
+
+    # Gemini File Search Store에서 의미론적 검색 (RAG)
+    file_search_result = await search_gemini_file_store(query)
+
+    # 지식베이스 통합
+    combined_knowledge = knowledge
+    if file_search_result:
+        combined_knowledge += f"\n\n## 문서 검색 결과\n{file_search_result}"
 
     system_prompt = f"""당신은 30년 경력의 양도소득세 전문 세무사입니다.
 
 ## 지식베이스
-{knowledge}
+{combined_knowledge}
 
 ## 답변 형식
 반드시 다음 5단계 구조로 답변하세요:
@@ -1379,6 +1446,87 @@ async def get_uploaded_files(admin: dict = Depends(require_admin)):
             for r in rows
         ]
     }
+
+
+@app.post("/api/admin/rag/test")
+async def test_rag_search(
+    query: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """RAG 검색 테스트 - FTS5와 Gemini File Search 모두 테스트"""
+    results = {
+        "query": query,
+        "fts5_result": "",
+        "gemini_result": "",
+        "combined": ""
+    }
+
+    # FTS5 검색 테스트
+    try:
+        fts5_result = search_knowledge(query)
+        results["fts5_result"] = fts5_result
+    except Exception as e:
+        results["fts5_result"] = f"FTS5 검색 오류: {str(e)}"
+
+    # Gemini File Search 테스트
+    try:
+        gemini_result = await search_gemini_file_store(query)
+        results["gemini_result"] = gemini_result if gemini_result else "Gemini File Search 결과 없음 (파일이 업로드되지 않았거나 관련 정보가 없습니다)"
+    except Exception as e:
+        results["gemini_result"] = f"Gemini 검색 오류: {str(e)}"
+
+    # 통합 결과
+    combined = results["fts5_result"]
+    if results["gemini_result"] and "결과 없음" not in results["gemini_result"] and "오류" not in results["gemini_result"]:
+        combined += f"\n\n## 문서 검색 결과\n{results['gemini_result']}"
+    results["combined"] = combined
+
+    return {
+        "status": "success",
+        "results": results
+    }
+
+
+@app.get("/api/admin/rag/status")
+async def get_rag_status(admin: dict = Depends(require_admin)):
+    """RAG 시스템 상태 확인"""
+    status = {
+        "fts5": {"status": "unknown", "count": 0},
+        "gemini": {"status": "unknown", "stores": [], "api_key_set": False}
+    }
+
+    # FTS5 상태 확인
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM tax_knowledge")
+        count = cursor.fetchone()[0]
+        conn.close()
+        status["fts5"] = {"status": "ok", "count": count}
+    except Exception as e:
+        status["fts5"] = {"status": "error", "message": str(e)}
+
+    # Gemini 상태 확인
+    status["gemini"]["api_key_set"] = bool(GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here")
+
+    try:
+        conn = sqlite3.connect(USER_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT store_name, display_name, created_at FROM file_search_stores")
+        stores = cursor.fetchall()
+
+        cursor.execute("SELECT COUNT(*) FROM uploaded_files WHERE destination = 'gemini' AND status = 'completed'")
+        gemini_file_count = cursor.fetchone()[0]
+        conn.close()
+
+        status["gemini"]["status"] = "ok"
+        status["gemini"]["stores"] = [{"store_name": s[0], "display_name": s[1], "created_at": s[2]} for s in stores]
+        status["gemini"]["file_count"] = gemini_file_count
+    except Exception as e:
+        status["gemini"]["status"] = "error"
+        status["gemini"]["message"] = str(e)
+
+    return {"status": "success", "rag_status": status}
 
 
 # === 대면상담 신청 API ===

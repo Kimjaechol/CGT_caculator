@@ -234,6 +234,39 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- RAG 테스트 섹션 -->
+                <div class="card mt-6">
+                    <div class="card-header flex items-center justify-between">
+                        <span>RAG 검색 테스트</span>
+                        <button onclick="loadRagStatus()" class="btn text-sm bg-gray-100 text-gray-700">상태 확인</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="ragStatusPanel" class="mb-4 p-3 bg-gray-50 rounded-lg hidden">
+                            <h4 class="font-medium text-gray-700 mb-2">RAG 시스템 상태</h4>
+                            <div id="ragStatusContent" class="text-sm"></div>
+                        </div>
+                        <form id="ragTestForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">테스트 검색어</label>
+                                <input type="text" id="ragTestQuery" class="input" placeholder="예: 1세대 1주택 비과세 요건" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">RAG 검색 테스트</button>
+                        </form>
+                        <div id="ragTestResults" class="mt-4 hidden">
+                            <div class="space-y-4">
+                                <div class="p-3 bg-blue-50 rounded-lg">
+                                    <h4 class="font-medium text-blue-700 mb-2">FTS5 키워드 검색 결과</h4>
+                                    <pre id="ragFts5Result" class="text-sm whitespace-pre-wrap text-gray-700"></pre>
+                                </div>
+                                <div class="p-3 bg-purple-50 rounded-lg">
+                                    <h4 class="font-medium text-purple-700 mb-2">Gemini File Search 결과</h4>
+                                    <pre id="ragGeminiResult" class="text-sm whitespace-pre-wrap text-gray-700"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 회원 관리 탭 -->
@@ -799,6 +832,77 @@
                 showToast('오류 발생', 'error');
             }
         }
+
+        // RAG 상태 확인
+        async function loadRagStatus() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/rag/status`);
+                const data = await res.json();
+                const panel = document.getElementById('ragStatusPanel');
+                const content = document.getElementById('ragStatusContent');
+
+                if (data.rag_status) {
+                    const fts5 = data.rag_status.fts5;
+                    const gemini = data.rag_status.gemini;
+
+                    content.innerHTML = `
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="font-medium">FTS5 키워드 검색</p>
+                                <p class="${fts5.status === 'ok' ? 'text-green-600' : 'text-red-600'}">
+                                    ${fts5.status === 'ok' ? '정상' : '오류'}
+                                </p>
+                                <p class="text-gray-500">등록된 지식: ${fts5.count || 0}개</p>
+                            </div>
+                            <div>
+                                <p class="font-medium">Gemini File Search</p>
+                                <p class="${gemini.api_key_set ? 'text-green-600' : 'text-yellow-600'}">
+                                    API Key: ${gemini.api_key_set ? '설정됨' : '미설정'}
+                                </p>
+                                <p class="text-gray-500">업로드된 파일: ${gemini.file_count || 0}개</p>
+                                <p class="text-gray-500">Store 수: ${gemini.stores?.length || 0}개</p>
+                            </div>
+                        </div>
+                    `;
+                    panel.classList.remove('hidden');
+                }
+            } catch (err) {
+                showToast('RAG 상태 확인 실패', 'error');
+            }
+        }
+
+        // RAG 테스트 폼
+        document.getElementById('ragTestForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = document.getElementById('ragTestQuery').value;
+            const resultsDiv = document.getElementById('ragTestResults');
+            const fts5Pre = document.getElementById('ragFts5Result');
+            const geminiPre = document.getElementById('ragGeminiResult');
+
+            fts5Pre.textContent = '검색 중...';
+            geminiPre.textContent = '검색 중...';
+            resultsDiv.classList.remove('hidden');
+
+            try {
+                const formData = new FormData();
+                formData.append('query', query);
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/rag/test`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.results) {
+                    fts5Pre.textContent = data.results.fts5_result || '결과 없음';
+                    geminiPre.textContent = data.results.gemini_result || '결과 없음';
+                }
+            } catch (err) {
+                fts5Pre.textContent = '오류 발생';
+                geminiPre.textContent = '오류 발생';
+                showToast('RAG 테스트 실패', 'error');
+            }
+        });
 
         // 토스트
         function showToast(message, type = 'success') {

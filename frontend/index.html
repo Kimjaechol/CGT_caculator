@@ -1002,12 +1002,29 @@
             document.getElementById('agreePrivacy').checked = allChecked;
         }
 
-        function requireLogin() {
+        // 로그인 후 실행할 대기 작업
+        let pendingAction = null;
+        let cachedFormData = null;
+
+        function requireLogin(action, formData = null) {
             if (!currentUser) {
+                pendingAction = action;
+                cachedFormData = formData;
                 showLoginRequiredModal();
                 return false;
             }
             return true;
+        }
+
+        // 로그인 성공 후 대기 작업 실행
+        function executePendingAction() {
+            if (pendingAction === 'calculate' && cachedFormData) {
+                submitCalculation(cachedFormData);
+            } else if (pendingAction === 'consult' && cachedFormData) {
+                submitConsultation(cachedFormData);
+            }
+            pendingAction = null;
+            cachedFormData = null;
         }
 
         // 일반 로그인 폼 처리
@@ -1030,7 +1047,11 @@
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     updateAuthUI();
                     hideLoginModal();
-                    alert('로그인되었습니다.');
+                    hideLoginRequiredModal();
+                    // 대기 작업이 있으면 실행
+                    if (pendingAction) {
+                        executePendingAction();
+                    }
                 } else {
                     alert(data.detail || '로그인에 실패했습니다.');
                 }
@@ -1074,7 +1095,11 @@
                     localStorage.setItem('currentUser', JSON.stringify(currentUser));
                     updateAuthUI();
                     hideRegisterModal();
-                    alert('회원가입이 완료되었습니다.');
+                    hideLoginRequiredModal();
+                    // 대기 작업이 있으면 실행
+                    if (pendingAction) {
+                        executePendingAction();
+                    }
                 } else {
                     alert(data.detail || '회원가입에 실패했습니다.');
                 }
