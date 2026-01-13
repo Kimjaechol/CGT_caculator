@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>관리자 - 양도소득세 AI 플랫폼</title>
+
+    <script src="./env.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * { font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .tab-btn { padding: 0.75rem 1rem; border-radius: 0.5rem; font-weight: 500; transition: all 0.2s; }
+        .tab-btn.active { background: #3b82f6; color: white; }
+        .tab-btn:not(.active) { background: #f1f5f9; color: #64748b; }
+        .tab-btn:not(.active):hover { background: #e2e8f0; }
+
+        .card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e5e7eb; }
+        .card-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; font-weight: 600; }
+        .card-body { padding: 1.5rem; }
+
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+
+        .input { width: 100%; padding: 0.75rem 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 0.875rem; }
+        .input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f8fafc; padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.875rem; color: #64748b; border-bottom: 1px solid #e5e7eb; }
+        td { padding: 0.75rem; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+        tr:hover td { background: #f8fafc; }
+
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 1rem; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; }
+
+        .upload-zone { border: 2px dashed #d1d5db; border-radius: 0.75rem; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover { border-color: #3b82f6; background: #f8fafc; }
+        .upload-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+
+        .spinner { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 1rem 1.5rem; border-radius: 0.5rem; color: white; z-index: 1000; animation: slideIn 0.3s ease-out; }
+        .toast.success { background: #10b981; }
+        .toast.error { background: #ef4444; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- 로그인 화면 -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center">
+        <div class="card w-full max-w-md">
+            <div class="card-header text-center">
+                <h1 class="text-xl font-bold text-gray-800">관리자 로그인</h1>
+                <p class="text-sm text-gray-500 mt-1">양도소득세 AI 플랫폼</p>
+            </div>
+            <div class="card-body">
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
+                        <input type="text" id="loginUsername" class="input" placeholder="admin" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
+                        <input type="password" id="loginPassword" class="input" placeholder="비밀번호" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full py-3">로그인</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 관리자 대시보드 -->
+    <div id="dashboard" class="hidden">
+        <!-- Header -->
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+                        A
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-gray-800">관리자 대시보드</h1>
+                        <p class="text-xs text-gray-500">양도소득세 AI 플랫폼</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="./" class="text-sm text-gray-500 hover:text-gray-700">메인 사이트</a>
+                    <button onclick="adminLogout()" class="btn text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">로그아웃</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-6">
+            <!-- 탭 네비게이션 -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button onclick="switchAdminTab('knowledge')" class="tab-btn active" data-tab="knowledge">지식 DB 관리</button>
+                <button onclick="switchAdminTab('gemini')" class="tab-btn" data-tab="gemini">Gemini File Search</button>
+                <button onclick="switchAdminTab('users')" class="tab-btn" data-tab="users">회원 관리</button>
+                <button onclick="switchAdminTab('consultations')" class="tab-btn" data-tab="consultations">상담 내역</button>
+                <button onclick="switchAdminTab('uploads')" class="tab-btn" data-tab="uploads">업로드 기록</button>
+            </div>
+
+            <!-- 지식 DB 관리 탭 -->
+            <div id="tab-knowledge" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 지식 추가 -->
+                    <div class="card">
+                        <div class="card-header">지식 항목 추가</div>
+                        <div class="card-body">
+                            <form id="addKnowledgeForm" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">카테고리</label>
+                                    <select id="knowledgeCategory" class="input">
+                                        <option value="비과세">비과세</option>
+                                        <option value="공제">공제</option>
+                                        <option value="세율">세율</option>
+                                        <option value="감면">감면</option>
+                                        <option value="일반">일반</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">제목</label>
+                                    <input type="text" id="knowledgeTitle" class="input" placeholder="예: 1세대1주택 비과세" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">내용</label>
+                                    <textarea id="knowledgeContent" class="input h-32" placeholder="세무 지식 내용을 입력하세요..." required></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">키워드 (공백으로 구분)</label>
+                                    <input type="text" id="knowledgeKeywords" class="input" placeholder="1세대1주택 비과세 12억">
+                                </div>
+                                <button type="submit" class="btn btn-primary w-full">추가하기</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 파일 업로드 -->
+                    <div class="card">
+                        <div class="card-header">텍스트/마크다운 파일 업로드 (FTS5)</div>
+                        <div class="card-body">
+                            <p class="text-sm text-gray-500 mb-4">
+                                .txt, .md 파일을 업로드하면 내용이 FTS5 키워드 검색 DB에 저장됩니다.
+                                파일명에서 카테고리를 추출합니다 (예: 비과세_일시적2주택.md → 카테고리: 비과세)
+                            </p>
+                            <div id="fts5UploadZone" class="upload-zone" onclick="document.getElementById('fts5FileInput').click()">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                                <p class="text-gray-600">클릭하여 파일 선택</p>
+                                <p class="text-xs text-gray-400 mt-1">.txt, .md 파일 (UTF-8)</p>
+                            </div>
+                            <input type="file" id="fts5FileInput" accept=".txt,.md" multiple class="hidden" onchange="uploadFTS5Files(this.files)">
+                            <div id="fts5UploadStatus" class="mt-4 hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 지식 목록 -->
+                <div class="card mt-6">
+                    <div class="card-header flex items-center justify-between">
+                        <span>지식 데이터베이스 목록</span>
+                        <button onclick="loadKnowledge()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>카테고리</th>
+                                    <th>제목</th>
+                                    <th>내용</th>
+                                    <th>키워드</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody id="knowledgeTableBody">
+                                <tr><td colspan="6" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gemini File Search 탭 -->
+            <div id="tab-gemini" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="card">
+                        <div class="card-header">Gemini File Search Store 업로드</div>
+                        <div class="card-body">
+                            <p class="text-sm text-gray-500 mb-4">
+                                PDF, HWP, 문서 파일 등을 Gemini File Search Store에 업로드합니다.
+                                Google AI가 자동으로 파일을 파싱하고 인덱싱합니다. (최대 100MB)
+                            </p>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Store 이름</label>
+                                <input type="text" id="geminiStoreName" class="input" value="Lawith_Tax_Store" placeholder="Store 이름">
+                            </div>
+                            <div id="geminiUploadZone" class="upload-zone" onclick="document.getElementById('geminiFileInput').click()">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                                <p class="text-gray-600">클릭하여 파일 선택</p>
+                                <p class="text-xs text-gray-400 mt-1">PDF, HWP, 문서 파일 등 (최대 100MB)</p>
+                            </div>
+                            <input type="file" id="geminiFileInput" multiple class="hidden" onchange="uploadGeminiFiles(this.files)">
+                            <div id="geminiUploadStatus" class="mt-4 hidden"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">File Search Stores</div>
+                        <div class="card-body">
+                            <div id="geminiStoresList" class="space-y-3">
+                                <p class="text-gray-400 text-sm">Store 목록을 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 회원 관리 탭 -->
+            <div id="tab-users" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header flex items-center justify-between">
+                        <span>회원 목록</span>
+                        <button onclick="loadUsers()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>프로필</th>
+                                    <th>닉네임</th>
+                                    <th>이메일</th>
+                                    <th>휴대폰</th>
+                                    <th>카카오ID</th>
+                                    <th>가입일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <tr><td colspan="7" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 상담 내역 탭 -->
+            <div id="tab-consultations" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header flex items-center justify-between">
+                        <span>상담 내역</span>
+                        <button onclick="loadConsultations()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>사용자</th>
+                                    <th>질문</th>
+                                    <th>상담일시</th>
+                                    <th>작업</th>
+                                </tr>
+                            </thead>
+                            <tbody id="consultationsTableBody">
+                                <tr><td colspan="5" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 업로드 기록 탭 -->
+            <div id="tab-uploads" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header flex items-center justify-between">
+                        <span>업로드된 파일 기록</span>
+                        <button onclick="loadUploads()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>파일명</th>
+                                    <th>타입</th>
+                                    <th>대상</th>
+                                    <th>Store</th>
+                                    <th>상태</th>
+                                    <th>업로드일시</th>
+                                </tr>
+                            </thead>
+                            <tbody id="uploadsTableBody">
+                                <tr><td colspan="7" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 상담 상세 모달 -->
+    <div id="consultationModal" class="modal-backdrop hidden" onclick="if(event.target === this) closeConsultationModal()">
+        <div class="modal-content">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="font-bold text-gray-800">상담 상세</h3>
+                <button onclick="closeConsultationModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 max-h-[70vh] overflow-y-auto" id="consultationModalContent">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.ENV_API_URL || 'https://cgtcaculator-production.up.railway.app';
+        let adminToken = null;
+
+        // 페이지 로드 시
+        document.addEventListener('DOMContentLoaded', () => {
+            adminToken = localStorage.getItem('adminToken');
+            if (adminToken) {
+                showDashboard();
+                loadAllData();
+            }
+        });
+
+        // 로그인
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    showDashboard();
+                    loadAllData();
+                } else {
+                    showToast(data.detail || '로그인 실패', 'error');
+                }
+            } catch (err) {
+                showToast('로그인 중 오류가 발생했습니다', 'error');
+            }
+        });
+
+        function adminLogout() {
+            adminToken = null;
+            localStorage.removeItem('adminToken');
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+        }
+
+        function loadAllData() {
+            loadKnowledge();
+            loadGeminiStores();
+            loadUsers();
+            loadConsultations();
+            loadUploads();
+        }
+
+        // 탭 전환
+        function switchAdminTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        }
+
+        // API 요청 헬퍼
+        async function adminFetch(url, options = {}) {
+            const headers = { ...options.headers, 'Authorization': `Bearer ${adminToken}` };
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401 || res.status === 403) {
+                adminLogout();
+                showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
+                throw new Error('Unauthorized');
+            }
+            return res;
+        }
+
+        // 지식 DB 관리
+        async function loadKnowledge() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge`);
+                const data = await res.json();
+                const tbody = document.getElementById('knowledgeTableBody');
+                if (data.entries && data.entries.length > 0) {
+                    tbody.innerHTML = data.entries.map(e => `
+                        <tr>
+                            <td>${e.id}</td>
+                            <td><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">${e.category}</span></td>
+                            <td class="font-medium">${e.title}</td>
+                            <td class="max-w-xs truncate" title="${e.content}">${e.content.substring(0, 100)}...</td>
+                            <td class="text-gray-500 text-xs">${e.keywords}</td>
+                            <td>
+                                <button onclick="deleteKnowledge(${e.id})" class="text-red-500 hover:text-red-700 text-sm">삭제</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">등록된 지식이 없습니다</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        document.getElementById('addKnowledgeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const entry = {
+                category: document.getElementById('knowledgeCategory').value,
+                title: document.getElementById('knowledgeTitle').value,
+                content: document.getElementById('knowledgeContent').value,
+                keywords: document.getElementById('knowledgeKeywords').value
+            };
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(entry)
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('지식 항목이 추가되었습니다', 'success');
+                    e.target.reset();
+                    loadKnowledge();
+                }
+            } catch (err) {
+                showToast('추가 중 오류가 발생했습니다', 'error');
+            }
+        });
+
+        async function deleteKnowledge(id) {
+            if (!confirm('정말 삭제하시겠습니까?')) return;
+            try {
+                await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}`, { method: 'DELETE' });
+                showToast('삭제되었습니다', 'success');
+                loadKnowledge();
+            } catch (err) {
+                showToast('삭제 중 오류가 발생했습니다', 'error');
+            }
+        }
+
+        // FTS5 파일 업로드
+        async function uploadFTS5Files(files) {
+            const statusDiv = document.getElementById('fts5UploadStatus');
+            statusDiv.classList.remove('hidden');
+            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 중...</div>';
+
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast(`${file.name} 업로드 완료`, 'success');
+                    } else {
+                        showToast(`${file.name}: ${data.message}`, 'error');
+                    }
+                } catch (err) {
+                    showToast(`${file.name} 업로드 실패`, 'error');
+                }
+            }
+
+            statusDiv.innerHTML = '<p class="text-green-600">업로드 완료</p>';
+            loadKnowledge();
+            loadUploads();
+        }
+
+        // Gemini File Search
+        async function loadGeminiStores() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/gemini/stores`);
+                const data = await res.json();
+                const container = document.getElementById('geminiStoresList');
+                if (data.stores && data.stores.length > 0) {
+                    container.innerHTML = data.stores.map(s => `
+                        <div class="p-3 bg-gray-50 rounded-lg">
+                            <p class="font-medium">${s.display_name}</p>
+                            <p class="text-xs text-gray-500">${s.store_name}</p>
+                            <p class="text-xs text-gray-400">${s.created_at}</p>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p class="text-gray-400 text-sm">등록된 Store가 없습니다</p>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function uploadGeminiFiles(files) {
+            const statusDiv = document.getElementById('geminiUploadStatus');
+            const storeName = document.getElementById('geminiStoreName').value;
+            statusDiv.classList.remove('hidden');
+            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>Gemini에 업로드 중... (시간이 걸릴 수 있습니다)</div>';
+
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('store_name', storeName);
+
+                try {
+                    const res = await adminFetch(`${API_BASE_URL}/api/admin/gemini/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        showToast(`${file.name} Gemini 업로드 완료`, 'success');
+                    } else {
+                        showToast(`${file.name}: ${data.detail || '업로드 실패'}`, 'error');
+                    }
+                } catch (err) {
+                    showToast(`${file.name} Gemini 업로드 실패`, 'error');
+                }
+            }
+
+            statusDiv.innerHTML = '<p class="text-green-600">업로드 완료</p>';
+            loadGeminiStores();
+            loadUploads();
+        }
+
+        // 회원 관리
+        async function loadUsers() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/users`);
+                const data = await res.json();
+                const tbody = document.getElementById('usersTableBody');
+                if (data.users && data.users.length > 0) {
+                    tbody.innerHTML = data.users.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>
+                                ${u.profile_image ? `<img src="${u.profile_image}" class="w-8 h-8 rounded-full">` : '<div class="w-8 h-8 bg-gray-200 rounded-full"></div>'}
+                            </td>
+                            <td class="font-medium">${u.nickname || '-'}</td>
+                            <td>${u.email || '-'}</td>
+                            <td>${u.phone || '-'}</td>
+                            <td class="text-xs text-gray-500">${u.kakao_id || '-'}</td>
+                            <td class="text-xs text-gray-500">${u.created_at || '-'}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">등록된 회원이 없습니다</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // 상담 내역
+        async function loadConsultations() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/consultations?limit=100`);
+                const data = await res.json();
+                const tbody = document.getElementById('consultationsTableBody');
+                if (data.consultations && data.consultations.length > 0) {
+                    tbody.innerHTML = data.consultations.map(c => `
+                        <tr>
+                            <td>${c.id}</td>
+                            <td>${c.nickname}</td>
+                            <td class="max-w-xs truncate" title="${c.query}">${c.query.substring(0, 50)}...</td>
+                            <td class="text-xs text-gray-500">${c.created_at}</td>
+                            <td>
+                                <button onclick="showConsultation(${c.id}, '${escapeHtml(c.query)}', '${escapeHtml(c.response_html || '')}')" class="text-blue-500 hover:text-blue-700 text-sm">상세</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-gray-400 py-8">상담 내역이 없습니다</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        }
+
+        function showConsultation(id, query, html) {
+            const modal = document.getElementById('consultationModal');
+            const content = document.getElementById('consultationModalContent');
+            content.innerHTML = `
+                <div class="mb-4">
+                    <h4 class="font-medium text-gray-700 mb-2">질문</h4>
+                    <p class="bg-gray-50 p-3 rounded">${query.replace(/\\n/g, '<br>')}</p>
+                </div>
+                <div>
+                    <h4 class="font-medium text-gray-700 mb-2">답변</h4>
+                    <div class="bg-gray-50 p-3 rounded">${html.replace(/\\n/g, '<br>').replace(/\\'/g, "'").replace(/\\"/g, '"') || '<p class="text-gray-400">답변 없음</p>'}</div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+
+        function closeConsultationModal() {
+            document.getElementById('consultationModal').classList.add('hidden');
+        }
+
+        // 업로드 기록
+        async function loadUploads() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/uploads`);
+                const data = await res.json();
+                const tbody = document.getElementById('uploadsTableBody');
+                if (data.files && data.files.length > 0) {
+                    tbody.innerHTML = data.files.map(f => `
+                        <tr>
+                            <td>${f.id}</td>
+                            <td class="font-medium">${f.filename}</td>
+                            <td>${f.file_type || '-'}</td>
+                            <td><span class="px-2 py-1 ${f.destination === 'gemini' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'} rounded text-xs">${f.destination}</span></td>
+                            <td class="text-xs text-gray-500">${f.store_name || '-'}</td>
+                            <td><span class="px-2 py-1 ${f.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded text-xs">${f.status}</span></td>
+                            <td class="text-xs text-gray-500">${f.created_at}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">업로드 기록이 없습니다</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // 토스트
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // 드래그 앤 드롭
+        ['fts5UploadZone', 'geminiUploadZone'].forEach(id => {
+            const zone = document.getElementById(id);
+            if (!zone) return;
+
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (id === 'fts5UploadZone') {
+                    uploadFTS5Files(files);
+                } else {
+                    uploadGeminiFiles(files);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

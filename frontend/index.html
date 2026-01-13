@@ -49,6 +49,12 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         .result-highlight { background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 1.5rem; border-radius: 1rem; text-align: center; }
+
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 1rem; max-width: 400px; width: 90%; max-height: 90vh; overflow-y: auto; }
+
+        .kakao-btn { background: #FEE500; color: #000000; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 24px; border-radius: 8px; transition: all 0.2s; }
+        .kakao-btn:hover { background: #FDD835; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -67,10 +73,26 @@
                         <p class="text-xs text-blue-200">AI 전문 컨설팅</p>
                     </div>
                 </div>
-                <nav class="hidden md:flex bg-blue-900/30 p-1 rounded-lg">
-                    <button onclick="switchTab('calc')" id="btn-calc-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition tab-active">계산기</button>
-                    <button onclick="switchTab('consult')" id="btn-consult-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">AI 상담</button>
-                </nav>
+                <div class="flex items-center space-x-4">
+                    <nav class="hidden md:flex bg-blue-900/30 p-1 rounded-lg">
+                        <button onclick="switchTab('calc')" id="btn-calc-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition tab-active">계산기</button>
+                        <button onclick="switchTab('consult')" id="btn-consult-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">AI 상담</button>
+                    </nav>
+                    <!-- 로그인 영역 -->
+                    <div id="authArea">
+                        <button onclick="showLoginModal()" id="loginBtn" class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                            </svg>
+                            <span>로그인</span>
+                        </button>
+                        <div id="userProfile" class="hidden flex items-center space-x-2">
+                            <img id="userProfileImg" src="" alt="" class="w-8 h-8 rounded-full bg-white/20">
+                            <span id="userNickname" class="text-sm font-medium"></span>
+                            <button onclick="logout()" class="ml-2 px-2 py-1 text-xs bg-white/20 hover:bg-white/30 rounded transition">로그아웃</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -377,12 +399,184 @@
         </button>
     </nav>
 
+    <!-- 로그인 모달 -->
+    <div id="loginModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideLoginModal()">
+        <div class="modal-content p-6">
+            <div class="text-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">로그인</h3>
+                <p class="text-sm text-gray-500 mt-2">간편하게 카카오로 로그인하세요</p>
+            </div>
+            <button onclick="loginWithKakao()" class="kakao-btn w-full">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path fill-rule="evenodd" clip-rule="evenodd" d="M10 2C5.58172 2 2 4.91015 2 8.5C2 10.7518 3.38508 12.7297 5.5 13.8711V17.5L9.13434 14.8633C9.4181 14.9205 9.70549 14.95 10 14.95C14.4183 14.95 18 12.0399 18 8.45C18 4.86015 14.4183 2 10 2Z" fill="black"/>
+                </svg>
+                카카오로 로그인
+            </button>
+            <p class="text-xs text-gray-400 text-center mt-4">로그인하면 상담 내역이 저장됩니다</p>
+        </div>
+    </div>
+
+    <!-- 추가 정보 입력 모달 -->
+    <div id="additionalInfoModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideAdditionalInfoModal()">
+        <div class="modal-content p-6">
+            <div class="text-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800">추가 정보 입력</h3>
+                <p class="text-sm text-gray-500 mt-2">서비스 이용을 위해 정보를 입력해 주세요</p>
+            </div>
+            <form id="additionalInfoForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+                    <input type="email" id="additionalEmail" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="이메일 주소">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">휴대폰 번호</label>
+                    <input type="tel" id="additionalPhone" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="010-0000-0000">
+                </div>
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">저장하기</button>
+                <button type="button" onclick="hideAdditionalInfoModal()" class="w-full py-3 text-gray-500 hover:text-gray-700 text-sm">나중에 하기</button>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // API Base URL - Railway 백엔드 URL로 변경하세요
-        const API_BASE_URL = window.ENV_API_URL || 'https://your-railway-app.up.railway.app';
+        // API Base URL - Railway 백엔드 URL
+        const API_BASE_URL = window.ENV_API_URL || 'https://cgtcaculator-production.up.railway.app';
 
         let lastCalcResult = null;
         let currentTab = 'calc';
+        let currentUser = null;
+        let authToken = null;
+
+        // 페이지 로드 시 로그인 상태 확인
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelector('[name="transfer_date"]').value = new Date().toISOString().split('T')[0];
+            checkAuthStatus();
+            handleKakaoCallback();
+        });
+
+        // 카카오 콜백 처리
+        function handleKakaoCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            if (code) {
+                // URL에서 code 파라미터 제거
+                window.history.replaceState({}, document.title, window.location.pathname);
+                processKakaoLogin(code);
+            }
+        }
+
+        async function processKakaoLogin(code) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/auth/kakao/callback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateAuthUI();
+                    if (data.user.needs_additional_info) {
+                        showAdditionalInfoModal();
+                    }
+                } else {
+                    alert('로그인에 실패했습니다.');
+                }
+            } catch (err) {
+                console.error('카카오 로그인 오류:', err);
+                alert('로그인 중 오류가 발생했습니다.');
+            }
+        }
+
+        function checkAuthStatus() {
+            try {
+                authToken = localStorage.getItem('authToken');
+                const userJson = localStorage.getItem('currentUser');
+                if (authToken && userJson) {
+                    currentUser = JSON.parse(userJson);
+                    updateAuthUI();
+                }
+            } catch (e) {
+                console.error('Auth check error:', e);
+            }
+        }
+
+        function updateAuthUI() {
+            const loginBtn = document.getElementById('loginBtn');
+            const userProfile = document.getElementById('userProfile');
+            const userProfileImg = document.getElementById('userProfileImg');
+            const userNickname = document.getElementById('userNickname');
+
+            if (currentUser) {
+                loginBtn.classList.add('hidden');
+                userProfile.classList.remove('hidden');
+                userProfile.classList.add('flex');
+                userNickname.textContent = currentUser.nickname || '사용자';
+                if (currentUser.profile_image) {
+                    userProfileImg.src = currentUser.profile_image;
+                }
+            } else {
+                loginBtn.classList.remove('hidden');
+                userProfile.classList.add('hidden');
+            }
+        }
+
+        async function loginWithKakao() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/auth/kakao/url`);
+                const data = await res.json();
+                if (data.auth_url) {
+                    window.location.href = data.auth_url;
+                } else {
+                    alert('카카오 로그인 설정이 필요합니다.');
+                }
+            } catch (err) {
+                alert('카카오 로그인 URL을 가져올 수 없습니다.');
+            }
+        }
+
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            updateAuthUI();
+        }
+
+        function showLoginModal() { document.getElementById('loginModal').classList.remove('hidden'); }
+        function hideLoginModal() { document.getElementById('loginModal').classList.add('hidden'); }
+        function showAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.remove('hidden'); }
+        function hideAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.add('hidden'); }
+
+        document.getElementById('additionalInfoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('additionalEmail').value;
+            const phone = document.getElementById('additionalPhone').value;
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/user/info`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ email, phone })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    currentUser.email = email;
+                    currentUser.phone = phone;
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    hideAdditionalInfoModal();
+                    alert('정보가 저장되었습니다.');
+                }
+            } catch (err) {
+                alert('정보 저장 중 오류가 발생했습니다.');
+            }
+        });
 
         function formatNumber(num) {
             if (num === null || num === undefined) return '0';
@@ -528,9 +722,12 @@
             addChatMessage('보고서를 작성하고 있습니다...', 'assistant', loadingId, true);
 
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
                 const res = await fetch(`${API_BASE_URL}/api/consult`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify({
                         query: query,
                         context_data: lastCalcResult ? lastCalcResult.summary : null
@@ -615,10 +812,6 @@
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             }).from(element).save();
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelector('[name="transfer_date"]').value = new Date().toISOString().split('T')[0];
-        });
     </script>
 </body>
 </html>
