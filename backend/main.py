@@ -1563,21 +1563,27 @@ async def kakao_callback(req: KakaoAuthRequest):
         raise HTTPException(status_code=500, detail="카카오 설정이 완료되지 않았습니다")
 
     async with httpx.AsyncClient() as client:
-        # 토큰 발급
+        # 토큰 발급 요청 데이터 구성
+        token_data = {
+            "grant_type": "authorization_code",
+            "client_id": KAKAO_CLIENT_ID,
+            "redirect_uri": KAKAO_REDIRECT_URI,
+            "code": req.code,
+        }
+        # Client Secret이 있는 경우에만 추가 (선택사항)
+        if KAKAO_CLIENT_SECRET:
+            token_data["client_secret"] = KAKAO_CLIENT_SECRET
+
         token_response = await client.post(
             "https://kauth.kakao.com/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "client_id": KAKAO_CLIENT_ID,
-                "client_secret": KAKAO_CLIENT_SECRET,
-                "redirect_uri": KAKAO_REDIRECT_URI,
-                "code": req.code,
-            },
+            data=token_data,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
 
         if token_response.status_code != 200:
-            raise HTTPException(status_code=400, detail="카카오 토큰 발급 실패")
+            error_detail = token_response.json() if token_response.text else {}
+            print(f"카카오 토큰 오류: {error_detail}")
+            raise HTTPException(status_code=400, detail=f"카카오 토큰 발급 실패: {error_detail.get('error_description', '알 수 없는 오류')}")
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
