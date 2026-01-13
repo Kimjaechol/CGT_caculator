@@ -521,41 +521,75 @@
             document.getElementById('dashboard').classList.remove('hidden');
         }
 
+        // 탭별 데이터 로드 상태 추적
+        const tabDataLoaded = {
+            knowledge: false,
+            gemini: false,
+            users: false,
+            consultations: false,
+            'meeting-requests': false,
+            uploads: false
+        };
+
         function loadAllData() {
+            // 현재 활성 탭의 데이터만 로드 (기본: knowledge)
             loadKnowledge();
-            loadGeminiStores();
-            loadUsers();
-            loadConsultations();
-            loadMeetingRequests();
-            loadUploads();
+            tabDataLoaded.knowledge = true;
         }
 
-        // 탭 전환
+        // 탭 전환 (필요시 데이터 로드)
         function switchAdminTab(tab) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById(`tab-${tab}`).classList.remove('hidden');
             document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            // 해당 탭 데이터가 아직 로드되지 않았으면 로드
+            if (!tabDataLoaded[tab]) {
+                tabDataLoaded[tab] = true;
+                switch(tab) {
+                    case 'knowledge': loadKnowledge(); break;
+                    case 'gemini': loadGeminiStores(); break;
+                    case 'users': loadUsers(); break;
+                    case 'consultations': loadConsultations(); break;
+                    case 'meeting-requests': loadMeetingRequests(); break;
+                    case 'uploads': loadUploads(); break;
+                }
+            }
         }
 
-        // API 요청 헬퍼
-        async function adminFetch(url, options = {}) {
+        // API 요청 헬퍼 (타임아웃 포함)
+        async function adminFetch(url, options = {}, timeout = 10000) {
             const headers = { ...options.headers, 'Authorization': `Bearer ${adminToken}` };
-            const res = await fetch(url, { ...options, headers });
-            if (res.status === 401 || res.status === 403) {
-                adminLogout();
-                showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
-                throw new Error('Unauthorized');
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                const res = await fetch(url, { ...options, headers, signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (res.status === 401 || res.status === 403) {
+                    adminLogout();
+                    showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 'error');
+                    throw new Error('Unauthorized');
+                }
+                return res;
+            } catch (err) {
+                clearTimeout(timeoutId);
+                if (err.name === 'AbortError') {
+                    throw new Error('요청 시간 초과');
+                }
+                throw err;
             }
-            return res;
         }
 
         // 지식 DB 관리
         async function loadKnowledge() {
+            const tbody = document.getElementById('knowledgeTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge`);
                 const data = await res.json();
-                const tbody = document.getElementById('knowledgeTableBody');
                 if (data.entries && data.entries.length > 0) {
                     tbody.innerHTML = data.entries.map(e => `
                         <tr>
@@ -575,6 +609,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
@@ -700,10 +735,10 @@
 
         // Gemini File Search
         async function loadGeminiStores() {
+            const container = document.getElementById('geminiStoresList');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/gemini/stores`);
                 const data = await res.json();
-                const container = document.getElementById('geminiStoresList');
                 if (data.stores && data.stores.length > 0) {
                     container.innerHTML = data.stores.map(s => `
                         <div class="p-3 bg-gray-50 rounded-lg">
@@ -717,6 +752,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                container.innerHTML = `<p class="text-red-400 text-sm">데이터 로드 실패: ${err.message}</p>`;
             }
         }
 
@@ -754,10 +790,10 @@
 
         // 회원 관리
         async function loadUsers() {
+            const tbody = document.getElementById('usersTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/users`);
                 const data = await res.json();
-                const tbody = document.getElementById('usersTableBody');
                 if (data.users && data.users.length > 0) {
                     tbody.innerHTML = data.users.map(u => `
                         <tr>
@@ -779,15 +815,16 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
         // 상담 내역
         async function loadConsultations() {
+            const tbody = document.getElementById('consultationsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/consultations?limit=100`);
                 const data = await res.json();
-                const tbody = document.getElementById('consultationsTableBody');
                 if (data.consultations && data.consultations.length > 0) {
                     tbody.innerHTML = data.consultations.map(c => `
                         <tr>
@@ -805,6 +842,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
@@ -835,10 +873,10 @@
 
         // 업로드 기록
         async function loadUploads() {
+            const tbody = document.getElementById('uploadsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/uploads`);
                 const data = await res.json();
-                const tbody = document.getElementById('uploadsTableBody');
                 if (data.files && data.files.length > 0) {
                     tbody.innerHTML = data.files.map(f => `
                         <tr>
@@ -856,15 +894,16 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
         // 대면상담 신청
         async function loadMeetingRequests() {
+            const tbody = document.getElementById('meetingRequestsTableBody');
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/consultation-requests?limit=100`);
                 const data = await res.json();
-                const tbody = document.getElementById('meetingRequestsTableBody');
                 const statusFilter = document.getElementById('meetingStatusFilter').value;
 
                 let requests = data.requests || [];
@@ -899,6 +938,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
