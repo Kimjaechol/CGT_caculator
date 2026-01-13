@@ -151,6 +151,9 @@ class KakaoAuthRequest(BaseModel):
 
 
 class UserInfoUpdate(BaseModel):
+    name: Optional[str] = None
+    birthdate: Optional[str] = None
+    gender: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
 
@@ -235,6 +238,9 @@ def init_user_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             kakao_id TEXT UNIQUE,
+            name TEXT,
+            birthdate TEXT,
+            gender TEXT,
             email TEXT,
             phone TEXT,
             nickname TEXT,
@@ -243,6 +249,20 @@ def init_user_db():
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # 기존 테이블에 새 컬럼 추가 (마이그레이션)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN name TEXT")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN birthdate TEXT")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
+    except:
+        pass
 
     # 관리자 테이블
     cursor.execute("""
@@ -790,7 +810,7 @@ async def kakao_callback(req: KakaoAuthRequest):
 
 @app.put("/api/user/info")
 async def update_user_info(req: UserInfoUpdate, user: dict = Depends(get_current_user)):
-    """사용자 이메일/휴대폰 정보 업데이트"""
+    """사용자 정보 업데이트"""
     if not user:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다")
 
@@ -801,6 +821,15 @@ async def update_user_info(req: UserInfoUpdate, user: dict = Depends(get_current
 
     updates = []
     values = []
+    if req.name:
+        updates.append("name = ?")
+        values.append(req.name)
+    if req.birthdate:
+        updates.append("birthdate = ?")
+        values.append(req.birthdate)
+    if req.gender:
+        updates.append("gender = ?")
+        values.append(req.gender)
     if req.email:
         updates.append("email = ?")
         values.append(req.email)
@@ -831,7 +860,7 @@ async def get_my_info(user: dict = Depends(get_current_user)):
 
     conn = sqlite3.connect(USER_DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, kakao_id, email, phone, nickname, profile_image FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT id, kakao_id, name, birthdate, gender, email, phone, nickname, profile_image FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -841,10 +870,13 @@ async def get_my_info(user: dict = Depends(get_current_user)):
     return {
         "id": row[0],
         "kakao_id": row[1],
-        "email": row[2],
-        "phone": row[3],
-        "nickname": row[4],
-        "profile_image": row[5]
+        "name": row[2],
+        "birthdate": row[3],
+        "gender": row[4],
+        "email": row[5],
+        "phone": row[6],
+        "nickname": row[7],
+        "profile_image": row[8]
     }
 
 
@@ -876,7 +908,7 @@ async def get_users(admin: dict = Depends(require_admin)):
     conn = sqlite3.connect(USER_DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id, kakao_id, email, phone, nickname, profile_image, created_at
+        SELECT id, kakao_id, name, birthdate, gender, email, phone, nickname, profile_image, created_at
         FROM users ORDER BY created_at DESC
     """)
     rows = cursor.fetchall()
@@ -885,8 +917,8 @@ async def get_users(admin: dict = Depends(require_admin)):
     return {
         "users": [
             {
-                "id": r[0], "kakao_id": r[1], "email": r[2], "phone": r[3],
-                "nickname": r[4], "profile_image": r[5], "created_at": r[6]
+                "id": r[0], "kakao_id": r[1], "name": r[2], "birthdate": r[3], "gender": r[4],
+                "email": r[5], "phone": r[6], "nickname": r[7], "profile_image": r[8], "created_at": r[9]
             }
             for r in rows
         ]

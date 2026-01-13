@@ -248,15 +248,17 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>프로필</th>
+                                    <th>이름</th>
                                     <th>닉네임</th>
+                                    <th>생년월일</th>
+                                    <th>성별</th>
                                     <th>이메일</th>
                                     <th>휴대폰</th>
-                                    <th>카카오ID</th>
                                     <th>가입일</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody">
-                                <tr><td colspan="7" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                                <tr><td colspan="9" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -576,15 +578,17 @@
                             <td>
                                 ${u.profile_image ? `<img src="${u.profile_image}" class="w-8 h-8 rounded-full">` : '<div class="w-8 h-8 bg-gray-200 rounded-full"></div>'}
                             </td>
-                            <td class="font-medium">${u.nickname || '-'}</td>
+                            <td class="font-medium">${u.name || '-'}</td>
+                            <td>${u.nickname || '-'}</td>
+                            <td class="text-xs">${u.birthdate || '-'}</td>
+                            <td><span class="px-2 py-1 ${u.gender === 'male' ? 'bg-blue-100 text-blue-700' : u.gender === 'female' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-500'} rounded text-xs">${u.gender === 'male' ? '남성' : u.gender === 'female' ? '여성' : '-'}</span></td>
                             <td>${u.email || '-'}</td>
                             <td>${u.phone || '-'}</td>
-                            <td class="text-xs text-gray-500">${u.kakao_id || '-'}</td>
                             <td class="text-xs text-gray-500">${u.created_at || '-'}</td>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">등록된 회원이 없습니다</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-gray-400 py-8">등록된 회원이 없습니다</td></tr>';
                 }
             } catch (err) {
                 console.error(err);
