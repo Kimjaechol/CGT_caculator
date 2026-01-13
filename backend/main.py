@@ -171,6 +171,21 @@ class AdminLoginRequest(BaseModel):
     password: str
 
 
+class UserRegisterRequest(BaseModel):
+    email: str = Field(..., description="이메일 (아이디)")
+    phone: str = Field(..., description="전화번호 (비밀번호)")
+    name: str = Field(..., description="이름")
+    birthdate: Optional[str] = Field(None, description="생년월일")
+    gender: Optional[str] = Field(None, description="성별")
+    agree_terms: bool = Field(..., description="약관 동의")
+    agree_privacy: bool = Field(..., description="개인정보처리방침 동의")
+
+
+class UserLoginRequest(BaseModel):
+    email: str = Field(..., description="이메일 (아이디)")
+    phone: str = Field(..., description="전화번호 (비밀번호)")
+
+
 class KnowledgeEntry(BaseModel):
     category: str
     title: str
@@ -292,6 +307,18 @@ def init_user_db():
         cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT")
     except:
         pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN agree_terms INTEGER DEFAULT 0")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN agree_privacy INTEGER DEFAULT 0")
+    except:
+        pass
 
     # 관리자 테이블
     cursor.execute("""
@@ -385,15 +412,15 @@ def init_user_db():
 
 
 def search_knowledge(query: str, limit: int = 5) -> str:
+    """FTS5 키워드 검색 (기본)"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        # FTS5 특수문자 제거 (알파벳, 숫자, 한글만 유지)
         import re
         clean_query = re.sub(r'[^\w\s가-힣]', ' ', query)
         words = [w.strip() for w in clean_query.split() if w.strip()]
         if not words:
-            return "검색어가 없습니다."
+            return ""
         search_query = ' OR '.join(words)
         cursor.execute("""
             SELECT title, content FROM tax_knowledge
@@ -404,9 +431,225 @@ def search_knowledge(query: str, limit: int = 5) -> str:
         conn.close()
         if results:
             return "\n\n".join([f"### {t}\n{c}" for t, c in results])
-        return "관련 법령 정보를 찾을 수 없습니다."
+        return ""
     except Exception as e:
         return f"검색 오류: {str(e)}"
+
+
+def search_knowledge_with_keywords(keywords: List[str], limit: int = 10) -> str:
+    """확장된 키워드 리스트로 FTS5 검색"""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        import re
+
+        all_results = []
+        seen_titles = set()
+
+        for keyword in keywords:
+            clean_keyword = re.sub(r'[^\w\s가-힣]', ' ', keyword)
+            words = [w.strip() for w in clean_keyword.split() if w.strip()]
+            if not words:
+                continue
+            search_query = ' OR '.join(words)
+            try:
+                cursor.execute("""
+                    SELECT title, content FROM tax_knowledge
+                    WHERE tax_knowledge MATCH ?
+                    ORDER BY rank LIMIT ?
+                """, (search_query, max(1, limit // len(keywords))))
+                results = cursor.fetchall()
+                for title, content in results:
+                    if title not in seen_titles:
+                        seen_titles.add(title)
+                        all_results.append((title, content))
+            except:
+                continue
+
+        conn.close()
+        if all_results:
+            return "\n\n".join([f"### {t}\n{c}" for t, c in all_results[:limit]])
+        return ""
+    except Exception as e:
+        return f"검색 오류: {str(e)}"
+
+
+async def analyze_query_with_ai(query: str) -> Dict[str, Any]:
+    """
+    [1단계] AI가 이용자 질문을 분석하여 의도, 쟁점, 키워드를 추출
+    - 이용자가 원하는 목적 파악
+    - 핵심 쟁점 확정
+    - 질문을 명확한 문장으로 정리
+    - 키워드 추출 및 동의어 확장
+    """
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        import re
+        words = [w for w in re.sub(r'[^\w\s가-힣]', ' ', query).split() if w.strip()]
+        return {
+            "original_query": query,
+            "intent": "양도소득세 관련 문의",
+            "issues": [query],
+            "reformulated_query": query,
+            "keywords": words[:5],
+            "expanded_keywords": words[:5]
+        }
+
+    analysis_prompt = """당신은 양도소득세 전문 분석가입니다.
+이용자의 질문을 분석하여 다음 정보를 JSON 형식으로 추출하세요.
+
+## 분석 항목
+1. intent: 이용자가 원하는 목적과 궁금한 점 (2-3문장으로 상세히)
+2. issues: 핵심 쟁점들 (리스트, 최대 3개)
+3. reformulated_query: 명확하게 정리된 질문 (한 문장)
+4. keywords: 검색에 사용할 핵심 키워드 (리스트, 최대 5개)
+5. expanded_keywords: 동의어와 관련어를 포함한 확장 키워드 (리스트, 최대 15개)
+
+## 양도소득세 관련 주요 동의어/관련어 참고
+- 비과세: 면세, 세금면제, 과세제외, 비과세요건, 세금안냄
+- 1세대1주택: 1가구1주택, 단독주택자, 1주택자, 단일주택, 일주택
+- 장기보유특별공제: 장특공제, 장기보유공제, 보유기간공제, 장기공제
+- 양도차익: 양도차액, 양도이익, 매매차익, 시세차익
+- 취득가액: 취득원가, 매입가, 구입가격, 취득비용
+- 필요경비: 취득세, 중개수수료, 법무비용, 부대비용
+- 조정대상지역: 투기과열지구, 조정지역, 규제지역, 투기지역
+- 다주택자: 2주택자, 3주택자, 다주택, 다가구, 복수주택
+- 일시적2주택: 이사목적, 대체취득, 종전주택, 신규주택
+- 거주기간: 실거주, 거주요건, 거주년수
+- 보유기간: 보유년수, 소유기간
+- 중과세: 중과, 추가세율, 가산세율
+- 양도세: 양도소득세, 부동산세금
+
+## 응답 형식 (반드시 아래 JSON 형식만 출력)
+```json
+{
+  "intent": "이용자의 목적 설명...",
+  "issues": ["쟁점1", "쟁점2"],
+  "reformulated_query": "정리된 질문",
+  "keywords": ["키워드1", "키워드2"],
+  "expanded_keywords": ["키워드1", "동의어1", "관련어1", ...]
+}
+```
+
+이용자 질문: """ + query
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            analysis_prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=1024
+            )
+        )
+
+        response_text = response.text
+        import re
+        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_str = json_match.group(0) if json_match else "{}"
+
+        analysis = json.loads(json_str)
+        analysis["original_query"] = query
+        return analysis
+
+    except Exception as e:
+        print(f"질문 분석 오류: {e}")
+        import re
+        words = [w for w in re.sub(r'[^\w\s가-힣]', ' ', query).split() if w.strip()]
+        return {
+            "original_query": query,
+            "intent": "양도소득세 관련 문의",
+            "issues": [query],
+            "reformulated_query": query,
+            "keywords": words[:5],
+            "expanded_keywords": words[:5]
+        }
+
+
+async def search_gemini_file_store(query: str) -> str:
+    """Gemini File Search Store를 사용한 의미론적 검색 (시멘틱 벡터 검색)"""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        return ""
+
+    try:
+        from google import genai as genai_new
+        from google.genai import types
+
+        client = genai_new.Client(api_key=GEMINI_API_KEY)
+
+        conn = sqlite3.connect(USER_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT store_name FROM file_search_stores ORDER BY created_at DESC LIMIT 5")
+        stores = cursor.fetchall()
+        conn.close()
+
+        if not stores:
+            return ""
+
+        all_results = []
+
+        for (store_name,) in stores:
+            try:
+                response = client.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=query,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(
+                            file_search=types.FileSearch(
+                                file_search_store=store_name
+                            )
+                        )],
+                        temperature=0.1,
+                        max_output_tokens=2048
+                    )
+                )
+
+                if response.text:
+                    all_results.append(response.text)
+
+            except Exception as e:
+                print(f"File Search Store '{store_name}' 검색 실패: {e}")
+                continue
+
+        return "\n\n".join(all_results) if all_results else ""
+
+    except ImportError:
+        return ""
+    except Exception as e:
+        print(f"Gemini File Search 오류: {e}")
+        return ""
+
+
+async def hybrid_rag_search(query_analysis: Dict[str, Any]) -> Dict[str, str]:
+    """
+    [2단계] 하이브리드 RAG 검색 수행
+    - FTS5: 확장된 키워드로 키워드 검색
+    - Gemini File Search: 정제된 질문으로 시멘틱 벡터 검색
+    - 두 검색을 동시에 수행하여 결과 통합
+    """
+    results = {
+        "fts5_results": "",
+        "semantic_results": "",
+        "query_analysis": query_analysis
+    }
+
+    # 1. FTS5 키워드 검색 (확장된 키워드 사용)
+    expanded_keywords = query_analysis.get("expanded_keywords", [])
+    if expanded_keywords:
+        results["fts5_results"] = search_knowledge_with_keywords(expanded_keywords, limit=10)
+
+    # 키워드 검색 결과가 없으면 기본 검색
+    if not results["fts5_results"]:
+        results["fts5_results"] = search_knowledge(query_analysis.get("original_query", ""))
+
+    # 2. Gemini File Search 시멘틱 검색 (정제된 질문 사용)
+    reformulated_query = query_analysis.get("reformulated_query", query_analysis.get("original_query", ""))
+    results["semantic_results"] = await search_gemini_file_store(reformulated_query)
+
+    return results
 
 
 # === JWT 토큰 관리 ===
@@ -635,48 +878,108 @@ def calculate_cgt(data: CalcRequest) -> Dict[str, Any]:
         return result
 
 
-# === AI 상담 ===
+# === AI 상담 (3단계 RAG 파이프라인) ===
 async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_id: int = None) -> str:
-    knowledge = search_knowledge(query)
+    """
+    3단계 RAG 기반 AI 상담:
+    1단계: 질문 분석 - 의도 파악, 쟁점 확정, 키워드 확장
+    2단계: 하이브리드 검색 - FTS5 키워드검색 + Gemini 시멘틱검색
+    3단계: 결과 통합 - 검색 결과를 조합하여 보고서 형식 답변 생성
+    """
+
+    # ============================================
+    # [1단계] 질문 분석 - AI가 질문을 먼저 분석
+    # ============================================
+    query_analysis = await analyze_query_with_ai(query)
+
+    # ============================================
+    # [2단계] 하이브리드 RAG 검색
+    # - 확장 키워드로 FTS5 검색
+    # - 정제된 질문으로 Gemini File Search
+    # ============================================
+    search_results = await hybrid_rag_search(query_analysis)
+
+    # 검색 결과 통합
+    fts5_knowledge = search_results.get("fts5_results", "")
+    semantic_knowledge = search_results.get("semantic_results", "")
+
+    combined_knowledge = ""
+    if fts5_knowledge:
+        combined_knowledge += f"## 관련 법령 및 세무 지식 (키워드 검색)\n{fts5_knowledge}\n\n"
+    if semantic_knowledge:
+        combined_knowledge += f"## 문서 검색 결과 (시멘틱 검색)\n{semantic_knowledge}\n\n"
+
+    if not combined_knowledge:
+        combined_knowledge = "관련 정보를 찾을 수 없습니다. 일반적인 양도소득세 지식을 바탕으로 답변합니다."
+
+    # ============================================
+    # [3단계] 보고서 형식 답변 생성
+    # ============================================
+    today = datetime.now().strftime('%Y년 %m월 %d일')
 
     system_prompt = f"""당신은 30년 경력의 양도소득세 전문 세무사입니다.
+아래의 [질문 분석 결과]와 [검색된 지식베이스]를 참고하여 이용자의 질문에 답변하세요.
 
-## 지식베이스
-{knowledge}
+## 질문 분석 결과
+- 이용자 원본 질문: {query_analysis.get('original_query', query)}
+- 이용자의 의도: {query_analysis.get('intent', '양도소득세 관련 문의')}
+- 핵심 쟁점: {', '.join(query_analysis.get('issues', []))}
+- 정리된 질문: {query_analysis.get('reformulated_query', query)}
+- 검색 키워드: {', '.join(query_analysis.get('keywords', []))}
 
-## 답변 형식
+## 검색된 지식베이스
+{combined_knowledge}
+
+## 답변 작성 지침
+1. 질문 분석 결과의 "핵심 쟁점"을 중심으로 답변하세요.
+2. 검색된 지식베이스의 내용을 근거로 답변하되, 없는 내용은 추측하지 마세요.
+3. 명확한 결론을 먼저 제시하고, 상세 설명을 뒤에 배치하세요.
+4. 관련 법령(소득세법, 시행령 등)이 있으면 반드시 인용하세요.
+5. 실무적으로 주의해야 할 사항과 리스크를 안내하세요.
+
+## 답변 형식 (HTML)
 반드시 다음 5단계 구조로 답변하세요:
 
 <div class="report-section">
 <h3>1. 문의 개요</h3>
-<p>귀하의 문의는 [질문 요약]에 관한 내용입니다.</p>
+<p>귀하의 문의는 <strong>[분석된 질문의 핵심]</strong>에 관한 내용입니다.</p>
+<p><em>핵심 쟁점: [쟁점 나열]</em></p>
 </div>
 
 <div class="report-section">
 <h3>2. 핵심 답변 (결론)</h3>
 <div class="conclusion-box">
-<p><strong>[명확한 결론]</strong></p>
+<p><strong>[명확하고 구체적인 결론 - 2~3문장]</strong></p>
 </div>
 </div>
 
 <div class="report-section">
 <h3>3. 상세 검토 및 법적 근거</h3>
-<ul><li>관련 법령과 실무 기준</li></ul>
+<ul>
+<li><strong>관련 법령:</strong> 소득세법 제○○조, 시행령 제○○조 등</li>
+<li><strong>적용 요건:</strong> 구체적인 요건 설명</li>
+<li><strong>계산 방법:</strong> 해당되는 경우 계산 예시</li>
+</ul>
 </div>
 
 <div class="report-section">
 <h3>4. 주의사항 및 리스크</h3>
-<ul><li>신고 기한, 가산세 등</li></ul>
+<ul>
+<li>신고 기한 및 납부 기한</li>
+<li>가산세 등 불이익</li>
+<li>실무상 주의점</li>
+</ul>
 </div>
 
 <div class="report-section">
 <h3>5. 종합 의견</h3>
-<p>실무적 조언</p>
+<p>전문가로서의 종합적인 조언과 권고사항</p>
 </div>
 
 <div class="report-footer">
-<p>본 보고서는 일반적인 세무 상담 자료입니다.</p>
-<p>작성일: {datetime.now().strftime('%Y년 %m월 %d일')}</p>
+<p>본 보고서는 일반적인 세무 상담 자료이며, 개별 사안에 따라 결과가 달라질 수 있습니다.</p>
+<p>정확한 세금 계산과 신고를 위해서는 세무사와의 개별 상담을 권장합니다.</p>
+<p>작성일: {today}</p>
 </div>
 """
 
@@ -687,7 +990,7 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
     response_html = ""
     try:
         if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
-            response_html = generate_fallback_response(query, knowledge)
+            response_html = generate_fallback_response(query, combined_knowledge)
         else:
             model = genai.GenerativeModel('gemini-1.5-pro')
             response = model.generate_content(
@@ -696,15 +999,20 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
             )
             response_html = response.text
     except Exception as e:
-        response_html = generate_fallback_response(query, knowledge, str(e))
+        response_html = generate_fallback_response(query, combined_knowledge, str(e))
 
-    # 상담 내역 저장
+    # 상담 내역 저장 (분석 결과 포함)
     try:
         conn = sqlite3.connect(USER_DB_PATH)
         cursor = conn.cursor()
+        context_with_analysis = {
+            "calculation_context": context,
+            "query_analysis": query_analysis,
+            "search_keywords": query_analysis.get("expanded_keywords", [])
+        }
         cursor.execute(
             "INSERT INTO consultations (user_id, query, context_data, response_html) VALUES (?, ?, ?, ?)",
-            (user_id, query, json.dumps(context) if context else None, response_html)
+            (user_id, query, json.dumps(context_with_analysis, ensure_ascii=False) if context_with_analysis else None, response_html)
         )
         conn.commit()
         conn.close()
@@ -876,6 +1184,110 @@ async def kakao_callback(req: KakaoAuthRequest):
                 "needs_additional_info": needs_additional_info
             }
         }
+
+
+@app.post("/api/auth/register")
+async def register_user(req: UserRegisterRequest):
+    """일반 회원가입 (이메일 + 전화번호)"""
+    if not req.agree_terms or not req.agree_privacy:
+        raise HTTPException(status_code=400, detail="약관 및 개인정보처리방침에 동의해야 합니다")
+
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+
+    # 이메일 중복 확인
+    cursor.execute("SELECT id FROM users WHERE email = ?", (req.email,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="이미 등록된 이메일입니다")
+
+    # 비밀번호 해싱 (전화번호를 비밀번호로 사용)
+    password_hash = hash_password(req.phone)
+
+    # 사용자 등록
+    cursor.execute("""
+        INSERT INTO users (email, phone, name, birthdate, gender, nickname, password_hash, agree_terms, agree_privacy)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (req.email, req.phone, req.name, req.birthdate, req.gender, req.name, password_hash, 1, 1))
+
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    # JWT 토큰 발급
+    jwt_token = create_access_token({
+        "user_id": user_id,
+        "email": req.email,
+        "nickname": req.name,
+        "role": "user"
+    })
+
+    return {
+        "status": "success",
+        "message": "회원가입이 완료되었습니다",
+        "token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": req.email,
+            "name": req.name,
+            "nickname": req.name,
+            "phone": req.phone,
+            "birthdate": req.birthdate,
+            "gender": req.gender
+        }
+    }
+
+
+@app.post("/api/auth/login")
+async def login_user(req: UserLoginRequest):
+    """일반 로그인 (이메일 + 전화번호)"""
+    conn = sqlite3.connect(USER_DB_PATH)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, email, name, nickname, phone, birthdate, gender, password_hash, profile_image
+        FROM users WHERE email = ?
+    """, (req.email,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=401, detail="등록되지 않은 이메일입니다")
+
+    user_id, email, name, nickname, phone, birthdate, gender, password_hash, profile_image = row
+
+    # 비밀번호 확인 (전화번호)
+    if not password_hash:
+        # 카카오로 가입한 사용자 - 전화번호 직접 비교
+        if phone != req.phone:
+            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다")
+    else:
+        # 일반 회원가입 사용자 - 해시 비교
+        if not verify_password(req.phone, password_hash):
+            raise HTTPException(status_code=401, detail="전화번호가 일치하지 않습니다")
+
+    # JWT 토큰 발급
+    jwt_token = create_access_token({
+        "user_id": user_id,
+        "email": email,
+        "nickname": nickname or name,
+        "role": "user"
+    })
+
+    return {
+        "status": "success",
+        "token": jwt_token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "nickname": nickname or name,
+            "phone": phone,
+            "birthdate": birthdate,
+            "gender": gender,
+            "profile_image": profile_image
+        }
+    }
 
 
 @app.put("/api/user/info")
@@ -1248,6 +1660,104 @@ async def get_uploaded_files(admin: dict = Depends(require_admin)):
             for r in rows
         ]
     }
+
+
+@app.post("/api/admin/rag/test")
+async def test_rag_search(
+    query: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """
+    3단계 RAG 파이프라인 테스트
+    1단계: 질문 분석 (의도, 쟁점, 키워드 확장)
+    2단계: 하이브리드 검색 (FTS5 + Gemini File Search)
+    3단계: 결과 통합
+    """
+    results = {
+        "query": query,
+        "step1_analysis": {},
+        "step2_fts5_result": "",
+        "step2_gemini_result": "",
+        "step3_combined": ""
+    }
+
+    # [1단계] 질문 분석
+    try:
+        query_analysis = await analyze_query_with_ai(query)
+        results["step1_analysis"] = {
+            "intent": query_analysis.get("intent", ""),
+            "issues": query_analysis.get("issues", []),
+            "reformulated_query": query_analysis.get("reformulated_query", ""),
+            "keywords": query_analysis.get("keywords", []),
+            "expanded_keywords": query_analysis.get("expanded_keywords", [])
+        }
+    except Exception as e:
+        results["step1_analysis"] = {"error": f"질문 분석 오류: {str(e)}"}
+        query_analysis = {"original_query": query, "expanded_keywords": [], "reformulated_query": query}
+
+    # [2단계] 하이브리드 RAG 검색
+    try:
+        search_results = await hybrid_rag_search(query_analysis)
+        results["step2_fts5_result"] = search_results.get("fts5_results", "") or "FTS5 검색 결과 없음"
+        results["step2_gemini_result"] = search_results.get("semantic_results", "") or "Gemini File Search 결과 없음 (파일이 업로드되지 않았거나 관련 정보가 없습니다)"
+    except Exception as e:
+        results["step2_fts5_result"] = f"FTS5 검색 오류: {str(e)}"
+        results["step2_gemini_result"] = f"Gemini 검색 오류: {str(e)}"
+
+    # [3단계] 결과 통합
+    combined = ""
+    if results["step2_fts5_result"] and "결과 없음" not in results["step2_fts5_result"] and "오류" not in results["step2_fts5_result"]:
+        combined += f"## 키워드 검색 결과 (FTS5)\n{results['step2_fts5_result']}\n\n"
+    if results["step2_gemini_result"] and "결과 없음" not in results["step2_gemini_result"] and "오류" not in results["step2_gemini_result"]:
+        combined += f"## 시멘틱 검색 결과 (Gemini)\n{results['step2_gemini_result']}"
+    results["step3_combined"] = combined if combined else "검색 결과가 없습니다."
+
+    return {
+        "status": "success",
+        "results": results
+    }
+
+
+@app.get("/api/admin/rag/status")
+async def get_rag_status(admin: dict = Depends(require_admin)):
+    """RAG 시스템 상태 확인"""
+    status = {
+        "fts5": {"status": "unknown", "count": 0},
+        "gemini": {"status": "unknown", "stores": [], "api_key_set": False}
+    }
+
+    # FTS5 상태 확인
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM tax_knowledge")
+        count = cursor.fetchone()[0]
+        conn.close()
+        status["fts5"] = {"status": "ok", "count": count}
+    except Exception as e:
+        status["fts5"] = {"status": "error", "message": str(e)}
+
+    # Gemini 상태 확인
+    status["gemini"]["api_key_set"] = bool(GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here")
+
+    try:
+        conn = sqlite3.connect(USER_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT store_name, display_name, created_at FROM file_search_stores")
+        stores = cursor.fetchall()
+
+        cursor.execute("SELECT COUNT(*) FROM uploaded_files WHERE destination = 'gemini' AND status = 'completed'")
+        gemini_file_count = cursor.fetchone()[0]
+        conn.close()
+
+        status["gemini"]["status"] = "ok"
+        status["gemini"]["stores"] = [{"store_name": s[0], "display_name": s[1], "created_at": s[2]} for s in stores]
+        status["gemini"]["file_count"] = gemini_file_count
+    except Exception as e:
+        status["gemini"]["status"] = "error"
+        status["gemini"]["message"] = str(e)
+
+    return {"status": "success", "rag_status": status}
 
 
 # === 대면상담 신청 API ===
