@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 import httpx
 
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import bcrypt
 
 import google.generativeai as genai
 
@@ -84,8 +84,15 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 DB_PATH = os.getenv("DB_PATH", "/tmp/tax_knowledge.db")
 USER_DB_PATH = os.getenv("USER_DB_PATH", "/tmp/users.db")
 
-# 비밀번호 해싱
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 비밀번호 해싱 함수
+def hash_password(password: str) -> str:
+    """비밀번호를 bcrypt로 해싱"""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    """비밀번호 검증"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
 security = HTTPBearer(auto_error=False)
 
 
@@ -299,7 +306,7 @@ def init_user_db():
     # 기본 관리자 계정 생성
     cursor.execute("SELECT count(*) FROM admins WHERE username = ?", (ADMIN_USERNAME,))
     if cursor.fetchone()[0] == 0:
-        hashed = pwd_context.hash(ADMIN_PASSWORD)
+        hashed = hash_password(ADMIN_PASSWORD)
         cursor.execute("INSERT INTO admins (username, password_hash) VALUES (?, ?)", (ADMIN_USERNAME, hashed))
 
     # 상담 내역 테이블
@@ -947,7 +954,7 @@ async def admin_login(req: AdminLoginRequest):
     row = cursor.fetchone()
     conn.close()
 
-    if not row or not pwd_context.verify(req.password, row[1]):
+    if not row or not verify_password(req.password, row[1]):
         raise HTTPException(status_code=401, detail="아이디 또는 비밀번호가 올바르지 않습니다")
 
     token = create_access_token({
