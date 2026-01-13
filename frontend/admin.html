@@ -112,7 +112,8 @@
                 <button onclick="switchAdminTab('knowledge')" class="tab-btn active" data-tab="knowledge">지식 DB 관리</button>
                 <button onclick="switchAdminTab('gemini')" class="tab-btn" data-tab="gemini">Gemini File Search</button>
                 <button onclick="switchAdminTab('users')" class="tab-btn" data-tab="users">회원 관리</button>
-                <button onclick="switchAdminTab('consultations')" class="tab-btn" data-tab="consultations">상담 내역</button>
+                <button onclick="switchAdminTab('consultations')" class="tab-btn" data-tab="consultations">AI 상담 내역</button>
+                <button onclick="switchAdminTab('meeting-requests')" class="tab-btn" data-tab="meeting-requests">대면상담 신청</button>
                 <button onclick="switchAdminTab('uploads')" class="tab-btn" data-tab="uploads">업로드 기록</button>
             </div>
 
@@ -291,6 +292,46 @@
                 </div>
             </div>
 
+            <!-- 대면상담 신청 탭 -->
+            <div id="tab-meeting-requests" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header flex items-center justify-between">
+                        <span>대면상담 신청 목록</span>
+                        <div class="flex items-center space-x-2">
+                            <select id="meetingStatusFilter" class="input text-sm py-1 w-32" onchange="loadMeetingRequests()">
+                                <option value="">전체</option>
+                                <option value="pending">대기중</option>
+                                <option value="confirmed">확정</option>
+                                <option value="completed">완료</option>
+                                <option value="cancelled">취소</option>
+                            </select>
+                            <button onclick="loadMeetingRequests()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>유형</th>
+                                    <th>신청자</th>
+                                    <th>연락처</th>
+                                    <th>희망일</th>
+                                    <th>상담내용</th>
+                                    <th>상태</th>
+                                    <th>알림</th>
+                                    <th>신청일</th>
+                                    <th>관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="meetingRequestsTableBody">
+                                <tr><td colspan="10" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- 업로드 기록 탭 -->
             <div id="tab-uploads" class="tab-content hidden">
                 <div class="card">
@@ -393,6 +434,7 @@
             loadGeminiStores();
             loadUsers();
             loadConsultations();
+            loadMeetingRequests();
             loadUploads();
         }
 
@@ -669,6 +711,92 @@
                 }
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        // 대면상담 신청
+        async function loadMeetingRequests() {
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/consultation-requests?limit=100`);
+                const data = await res.json();
+                const tbody = document.getElementById('meetingRequestsTableBody');
+                const statusFilter = document.getElementById('meetingStatusFilter').value;
+
+                let requests = data.requests || [];
+                if (statusFilter) {
+                    requests = requests.filter(r => r.status === statusFilter);
+                }
+
+                if (requests.length > 0) {
+                    tbody.innerHTML = requests.map(r => `
+                        <tr>
+                            <td>${r.id}</td>
+                            <td><span class="px-2 py-1 ${r.type === 'tax' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'} rounded text-xs font-medium">${r.type === 'tax' ? '세무사' : '변호사'}</span></td>
+                            <td class="font-medium">${r.name}</td>
+                            <td>${r.phone}</td>
+                            <td>${r.preferred_date}</td>
+                            <td class="max-w-xs truncate" title="${r.content}">${r.content.substring(0, 30)}${r.content.length > 30 ? '...' : ''}</td>
+                            <td><span class="px-2 py-1 ${getStatusStyle(r.status)} rounded text-xs">${getStatusLabel(r.status)}</span></td>
+                            <td>
+                                <div class="flex items-center space-x-1">
+                                    ${r.kakao_sent ? '<span class="text-yellow-500" title="카카오 발송됨">💬</span>' : '<span class="text-gray-300" title="카카오 미발송">💬</span>'}
+                                    ${r.push_sent > 0 ? '<span class="text-blue-500" title="푸시 발송됨">🔔</span>' : '<span class="text-gray-300" title="푸시 미발송">🔔</span>'}
+                                </div>
+                            </td>
+                            <td class="text-xs text-gray-500">${r.created_at}</td>
+                            <td>
+                                <button onclick="updateMeetingStatus(${r.id}, '${r.status}')" class="text-blue-500 hover:text-blue-700 text-sm">변경</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-400 py-8">대면상담 신청이 없습니다</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function getStatusLabel(status) {
+            const labels = { pending: '대기중', confirmed: '확정', completed: '완료', cancelled: '취소' };
+            return labels[status] || status;
+        }
+
+        function getStatusStyle(status) {
+            const styles = {
+                pending: 'bg-yellow-100 text-yellow-700',
+                confirmed: 'bg-blue-100 text-blue-700',
+                completed: 'bg-green-100 text-green-700',
+                cancelled: 'bg-gray-100 text-gray-500'
+            };
+            return styles[status] || 'bg-gray-100 text-gray-500';
+        }
+
+        async function updateMeetingStatus(id, currentStatus) {
+            const newStatus = prompt(`상태 변경 (pending/confirmed/completed/cancelled)\n현재: ${currentStatus}`, currentStatus);
+            if (!newStatus || newStatus === currentStatus) return;
+
+            const note = prompt('관리자 메모 (선택사항):', '');
+
+            try {
+                const formData = new FormData();
+                formData.append('status', newStatus);
+                if (note) formData.append('admin_note', note);
+
+                const res = await fetch(`${API_BASE_URL}/api/admin/consultation-requests/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${adminToken}` },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('상태가 변경되었습니다.');
+                    loadMeetingRequests();
+                } else {
+                    showToast('변경 실패', 'error');
+                }
+            } catch (err) {
+                showToast('오류 발생', 'error');
             }
         }
 

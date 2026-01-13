@@ -77,6 +77,7 @@
                     <nav class="hidden md:flex bg-blue-900/30 p-1 rounded-lg">
                         <button onclick="switchTab('calc')" id="btn-calc-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition tab-active">계산기</button>
                         <button onclick="switchTab('consult')" id="btn-consult-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">AI 상담</button>
+                        <button onclick="switchTab('meeting')" id="btn-meeting-desktop" class="px-4 py-2 rounded-md text-sm font-medium transition text-blue-200 hover:text-white">대면상담</button>
                     </nav>
                     <!-- 로그인 영역 -->
                     <div id="authArea">
@@ -381,21 +382,158 @@
                 </div>
             </div>
         </section>
+
+        <!-- In-Person Consultation Tab -->
+        <section id="tab-meeting" class="hidden animate-fadeIn">
+            <div class="max-w-4xl mx-auto">
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">대면 상담 신청</h2>
+                    <p class="text-gray-500">전문가와 직접 상담하세요</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 세무사 상담 카드 -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow">
+                        <div class="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold">세무사 대면상담</h3>
+                                    <p class="text-emerald-100 text-sm">양도소득세 전문 세무사</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <ul class="space-y-3 mb-6">
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">복잡한 양도세 절세 전략 상담</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">다주택자 세금 최적화 방안</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">비과세/감면 요건 검토</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">신고서 작성 및 제출 대행</span>
+                                </li>
+                            </ul>
+                            <button onclick="showConsultationModal('tax')" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-xl transition flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>상담 신청하기</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 변호사 상담 카드 -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-shadow">
+                        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-bold">변호사 대면상담</h3>
+                                    <p class="text-indigo-100 text-sm">부동산/세무 전문 변호사</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <ul class="space-y-3 mb-6">
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">부동산 거래 관련 법률 검토</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">세무조사 대응 및 불복 절차</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">조세심판/행정소송 대리</span>
+                                </li>
+                                <li class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                    </svg>
+                                    <span class="text-gray-600">계약서 검토 및 분쟁 해결</span>
+                                </li>
+                            </ul>
+                            <button onclick="showConsultationModal('lawyer')" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>상담 신청하기</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 안내 사항 -->
+                <div class="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-6">
+                    <div class="flex items-start space-x-3">
+                        <svg class="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <div>
+                            <h4 class="font-semibold text-amber-800 mb-2">상담 안내</h4>
+                            <ul class="text-sm text-amber-700 space-y-1">
+                                <li>• 상담 신청 후 담당자가 연락드립니다.</li>
+                                <li>• 상담 일정은 상호 협의하여 조정됩니다.</li>
+                                <li>• 상담 비용은 첫 상담 시 안내드립니다.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Mobile Bottom Navigation -->
     <nav class="mobile-nav justify-around">
-        <button onclick="switchTab('calc')" id="btn-calc-mobile" class="flex flex-col items-center py-2 px-6 text-blue-600">
+        <button onclick="switchTab('calc')" id="btn-calc-mobile" class="flex flex-col items-center py-2 px-4 text-blue-600">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
             </svg>
             <span class="text-xs mt-1 font-medium">계산기</span>
         </button>
-        <button onclick="switchTab('consult')" id="btn-consult-mobile" class="flex flex-col items-center py-2 px-6 text-gray-400">
+        <button onclick="switchTab('consult')" id="btn-consult-mobile" class="flex flex-col items-center py-2 px-4 text-gray-400">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
             </svg>
             <span class="text-xs mt-1 font-medium">AI 상담</span>
+        </button>
+        <button onclick="switchTab('meeting')" id="btn-meeting-mobile" class="flex flex-col items-center py-2 px-4 text-gray-400">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+            <span class="text-xs mt-1 font-medium">대면상담</span>
         </button>
     </nav>
 
@@ -456,6 +594,67 @@
                 <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">저장하기</button>
                 <button type="button" onclick="hideAdditionalInfoModal()" class="w-full py-3 text-gray-500 hover:text-gray-700 text-sm">나중에 하기</button>
             </form>
+        </div>
+    </div>
+
+    <!-- 대면상담 신청 모달 -->
+    <div id="consultationModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideConsultationModal()">
+        <div class="modal-content p-6 max-w-md">
+            <div class="text-center mb-6">
+                <div id="consultModalIcon" class="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center bg-gradient-to-r from-emerald-600 to-teal-600">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <h3 id="consultModalTitle" class="text-xl font-bold text-gray-800">세무사 대면상담 신청</h3>
+                <p class="text-sm text-gray-500 mt-2">상담 정보를 입력해 주세요</p>
+            </div>
+            <form id="consultationForm" class="space-y-4">
+                <input type="hidden" id="consultationType" value="tax">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이름 <span class="text-red-500">*</span></label>
+                    <input type="text" id="consultName" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="실명을 입력해 주세요" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">연락처 <span class="text-red-500">*</span></label>
+                    <input type="tel" id="consultPhone" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="010-0000-0000" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+                    <input type="email" id="consultEmail" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="이메일 주소 (선택)">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">희망 상담일 <span class="text-red-500">*</span></label>
+                    <input type="date" id="consultDate" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">상담 내용 <span class="text-red-500">*</span></label>
+                    <textarea id="consultContent" rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" placeholder="상담받고 싶은 내용을 간략히 입력해 주세요" required></textarea>
+                </div>
+                <div class="flex items-start space-x-2">
+                    <input type="checkbox" id="consultAgree" class="w-5 h-5 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" required>
+                    <label for="consultAgree" class="text-sm text-gray-600">개인정보 수집 및 이용에 동의합니다. <span class="text-red-500">*</span></label>
+                </div>
+                <button type="submit" id="consultSubmitBtn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-lg transition flex items-center justify-center space-x-2">
+                    <span id="consultSubmitText">상담 신청하기</span>
+                    <div id="consultSubmitSpinner" class="hidden spinner"></div>
+                </button>
+                <button type="button" onclick="hideConsultationModal()" class="w-full py-2 text-gray-500 hover:text-gray-700 text-sm">취소</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 상담 신청 완료 모달 -->
+    <div id="consultationSuccessModal" class="modal-backdrop hidden" onclick="if(event.target === this) hideConsultationSuccessModal()">
+        <div class="modal-content p-6 text-center">
+            <div class="w-20 h-20 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+                <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800 mb-2">상담 신청이 완료되었습니다</h3>
+            <p class="text-gray-500 mb-6">담당자가 곧 연락드리겠습니다.<br>카카오톡으로 알림이 전송되었습니다.</p>
+            <button onclick="hideConsultationSuccessModal()" class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">확인</button>
         </div>
     </div>
 
@@ -571,6 +770,87 @@
         function hideLoginModal() { document.getElementById('loginModal').classList.add('hidden'); }
         function showAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.remove('hidden'); }
         function hideAdditionalInfoModal() { document.getElementById('additionalInfoModal').classList.add('hidden'); }
+        function hideConsultationModal() { document.getElementById('consultationModal').classList.add('hidden'); }
+        function hideConsultationSuccessModal() { document.getElementById('consultationSuccessModal').classList.add('hidden'); }
+
+        function showConsultationModal(type) {
+            const modal = document.getElementById('consultationModal');
+            const icon = document.getElementById('consultModalIcon');
+            const title = document.getElementById('consultModalTitle');
+            const submitBtn = document.getElementById('consultSubmitBtn');
+            document.getElementById('consultationType').value = type;
+
+            // 로그인 사용자 정보 자동 입력
+            if (currentUser) {
+                document.getElementById('consultName').value = currentUser.name || '';
+                document.getElementById('consultPhone').value = currentUser.phone || '';
+                document.getElementById('consultEmail').value = currentUser.email || '';
+            }
+
+            // 희망 상담일 기본값 설정 (내일)
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('consultDate').value = tomorrow.toISOString().split('T')[0];
+            document.getElementById('consultDate').min = tomorrow.toISOString().split('T')[0];
+
+            if (type === 'tax') {
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center bg-gradient-to-r from-emerald-600 to-teal-600';
+                title.textContent = '세무사 대면상담 신청';
+                submitBtn.className = 'w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-lg transition flex items-center justify-center space-x-2';
+            } else {
+                icon.className = 'w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center bg-gradient-to-r from-indigo-600 to-purple-600';
+                title.textContent = '변호사 대면상담 신청';
+                submitBtn.className = 'w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-lg transition flex items-center justify-center space-x-2';
+            }
+            modal.classList.remove('hidden');
+        }
+
+        // 대면상담 신청 폼 제출
+        document.getElementById('consultationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('consultSubmitBtn');
+            const submitText = document.getElementById('consultSubmitText');
+            const submitSpinner = document.getElementById('consultSubmitSpinner');
+
+            submitBtn.disabled = true;
+            submitText.classList.add('hidden');
+            submitSpinner.classList.remove('hidden');
+
+            const data = {
+                type: document.getElementById('consultationType').value,
+                name: document.getElementById('consultName').value,
+                phone: document.getElementById('consultPhone').value,
+                email: document.getElementById('consultEmail').value,
+                preferred_date: document.getElementById('consultDate').value,
+                content: document.getElementById('consultContent').value
+            };
+
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+                const res = await fetch(`${API_BASE_URL}/api/consultation/request`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+
+                if (result.status === 'success') {
+                    hideConsultationModal();
+                    document.getElementById('consultationSuccessModal').classList.remove('hidden');
+                    document.getElementById('consultationForm').reset();
+                } else {
+                    alert(result.message || '상담 신청에 실패했습니다.');
+                }
+            } catch (err) {
+                alert('서버 연결 오류: ' + err.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitText.classList.remove('hidden');
+                submitSpinner.classList.add('hidden');
+            }
+        });
 
         document.getElementById('additionalInfoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -629,14 +909,21 @@
             currentTab = tab;
             document.getElementById('tab-calc').classList.toggle('hidden', tab !== 'calc');
             document.getElementById('tab-consult').classList.toggle('hidden', tab !== 'consult');
+            document.getElementById('tab-meeting').classList.toggle('hidden', tab !== 'meeting');
+            // Desktop buttons
             document.getElementById('btn-calc-desktop').classList.toggle('tab-active', tab === 'calc');
             document.getElementById('btn-calc-desktop').classList.toggle('text-blue-200', tab !== 'calc');
             document.getElementById('btn-consult-desktop').classList.toggle('tab-active', tab === 'consult');
             document.getElementById('btn-consult-desktop').classList.toggle('text-blue-200', tab !== 'consult');
+            document.getElementById('btn-meeting-desktop').classList.toggle('tab-active', tab === 'meeting');
+            document.getElementById('btn-meeting-desktop').classList.toggle('text-blue-200', tab !== 'meeting');
+            // Mobile buttons
             document.getElementById('btn-calc-mobile').classList.toggle('text-blue-600', tab === 'calc');
             document.getElementById('btn-calc-mobile').classList.toggle('text-gray-400', tab !== 'calc');
             document.getElementById('btn-consult-mobile').classList.toggle('text-blue-600', tab === 'consult');
             document.getElementById('btn-consult-mobile').classList.toggle('text-gray-400', tab !== 'consult');
+            document.getElementById('btn-meeting-mobile').classList.toggle('text-blue-600', tab === 'meeting');
+            document.getElementById('btn-meeting-mobile').classList.toggle('text-gray-400', tab !== 'meeting');
         }
 
         function toggleAdvanced() {
