@@ -235,10 +235,10 @@
                     </div>
                 </div>
 
-                <!-- RAG 테스트 섹션 -->
+                <!-- RAG 테스트 섹션 (3단계 파이프라인) -->
                 <div class="card mt-6">
                     <div class="card-header flex items-center justify-between">
-                        <span>RAG 검색 테스트</span>
+                        <span>3단계 RAG 파이프라인 테스트</span>
                         <button onclick="loadRagStatus()" class="btn text-sm bg-gray-100 text-gray-700">상태 확인</button>
                     </div>
                     <div class="card-body">
@@ -246,22 +246,40 @@
                             <h4 class="font-medium text-gray-700 mb-2">RAG 시스템 상태</h4>
                             <div id="ragStatusContent" class="text-sm"></div>
                         </div>
+                        <p class="text-sm text-gray-500 mb-4">
+                            <strong>3단계 RAG 프로세스:</strong><br>
+                            1단계: AI가 질문 분석 → 의도 파악, 쟁점 확정, 키워드 확장<br>
+                            2단계: 하이브리드 검색 → FTS5 키워드검색 + Gemini 시멘틱검색<br>
+                            3단계: 결과 통합 → 검색 결과를 조합하여 답변 생성
+                        </p>
                         <form id="ragTestForm" class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">테스트 검색어</label>
-                                <input type="text" id="ragTestQuery" class="input" placeholder="예: 1세대 1주택 비과세 요건" required>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">테스트 질문</label>
+                                <input type="text" id="ragTestQuery" class="input" placeholder="예: 1세대 1주택 비과세 요건이 궁금합니다" required>
                             </div>
-                            <button type="submit" class="btn btn-primary">RAG 검색 테스트</button>
+                            <button type="submit" class="btn btn-primary">3단계 RAG 테스트 실행</button>
                         </form>
                         <div id="ragTestResults" class="mt-4 hidden">
                             <div class="space-y-4">
-                                <div class="p-3 bg-blue-50 rounded-lg">
-                                    <h4 class="font-medium text-blue-700 mb-2">FTS5 키워드 검색 결과</h4>
+                                <!-- 1단계: 질문 분석 결과 -->
+                                <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <h4 class="font-medium text-yellow-700 mb-2">📝 1단계: 질문 분석 결과</h4>
+                                    <div id="ragAnalysisResult" class="text-sm text-gray-700"></div>
+                                </div>
+                                <!-- 2단계: FTS5 키워드 검색 -->
+                                <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h4 class="font-medium text-blue-700 mb-2">🔍 2단계-A: FTS5 키워드 검색 결과</h4>
                                     <pre id="ragFts5Result" class="text-sm whitespace-pre-wrap text-gray-700"></pre>
                                 </div>
-                                <div class="p-3 bg-purple-50 rounded-lg">
-                                    <h4 class="font-medium text-purple-700 mb-2">Gemini File Search 결과</h4>
+                                <!-- 2단계: Gemini 시멘틱 검색 -->
+                                <div class="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                    <h4 class="font-medium text-purple-700 mb-2">🧠 2단계-B: Gemini 시멘틱 검색 결과</h4>
                                     <pre id="ragGeminiResult" class="text-sm whitespace-pre-wrap text-gray-700"></pre>
+                                </div>
+                                <!-- 3단계: 통합 결과 -->
+                                <div class="p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <h4 class="font-medium text-green-700 mb-2">✅ 3단계: 통합 검색 결과</h4>
+                                    <pre id="ragCombinedResult" class="text-sm whitespace-pre-wrap text-gray-700"></pre>
                                 </div>
                             </div>
                         </div>
@@ -871,16 +889,20 @@
             }
         }
 
-        // RAG 테스트 폼
+        // RAG 테스트 폼 (3단계 파이프라인)
         document.getElementById('ragTestForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const query = document.getElementById('ragTestQuery').value;
             const resultsDiv = document.getElementById('ragTestResults');
+            const analysisDiv = document.getElementById('ragAnalysisResult');
             const fts5Pre = document.getElementById('ragFts5Result');
             const geminiPre = document.getElementById('ragGeminiResult');
+            const combinedPre = document.getElementById('ragCombinedResult');
 
-            fts5Pre.textContent = '검색 중...';
-            geminiPre.textContent = '검색 중...';
+            analysisDiv.innerHTML = '<p class="text-yellow-600">1단계 질문 분석 중...</p>';
+            fts5Pre.textContent = '2단계 검색 대기 중...';
+            geminiPre.textContent = '2단계 검색 대기 중...';
+            combinedPre.textContent = '3단계 통합 대기 중...';
             resultsDiv.classList.remove('hidden');
 
             try {
@@ -894,12 +916,32 @@
                 const data = await res.json();
 
                 if (data.results) {
-                    fts5Pre.textContent = data.results.fts5_result || '결과 없음';
-                    geminiPre.textContent = data.results.gemini_result || '결과 없음';
+                    // 1단계: 질문 분석 결과 표시
+                    const analysis = data.results.step1_analysis;
+                    if (analysis && !analysis.error) {
+                        analysisDiv.innerHTML = `
+                            <p><strong>의도:</strong> ${analysis.intent || '-'}</p>
+                            <p><strong>핵심 쟁점:</strong> ${(analysis.issues || []).join(', ') || '-'}</p>
+                            <p><strong>정리된 질문:</strong> ${analysis.reformulated_query || '-'}</p>
+                            <p><strong>핵심 키워드:</strong> <span class="text-blue-600">${(analysis.keywords || []).join(', ') || '-'}</span></p>
+                            <p><strong>확장 키워드:</strong> <span class="text-purple-600">${(analysis.expanded_keywords || []).join(', ') || '-'}</span></p>
+                        `;
+                    } else {
+                        analysisDiv.innerHTML = `<p class="text-red-500">${analysis?.error || '분석 실패'}</p>`;
+                    }
+
+                    // 2단계: 검색 결과 표시
+                    fts5Pre.textContent = data.results.step2_fts5_result || '결과 없음';
+                    geminiPre.textContent = data.results.step2_gemini_result || '결과 없음';
+
+                    // 3단계: 통합 결과 표시
+                    combinedPre.textContent = data.results.step3_combined || '통합 결과 없음';
                 }
             } catch (err) {
+                analysisDiv.innerHTML = '<p class="text-red-500">분석 오류 발생</p>';
                 fts5Pre.textContent = '오류 발생';
                 geminiPre.textContent = '오류 발생';
+                combinedPre.textContent = '오류 발생';
                 showToast('RAG 테스트 실패', 'error');
             }
         });
