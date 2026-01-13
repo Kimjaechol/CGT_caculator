@@ -80,6 +80,9 @@ JWT_EXPIRE_HOURS = 24
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin1234")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 
+# Perplexity AI API 설정
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
+
 # Railway에서는 /tmp 디렉토리 사용
 DB_PATH = os.getenv("DB_PATH", "/tmp/tax_knowledge.db")
 USER_DB_PATH = os.getenv("USER_DB_PATH", "/tmp/users.db")
@@ -411,6 +414,18 @@ def init_user_db():
     conn.close()
 
 
+# ============================================
+# === 검색 파이프라인 2.0 (Search Pipeline 2.0) ===
+# ============================================
+# 3가지 검색을 병렬 실행:
+# 1. FTS5 스마트 키워드 검색 (Multi-Query)
+# 2. Gemini File Search 시멘틱 검색
+# 3. Perplexity AI 웹검색 (법령 검증)
+
+# 토큰 제한 설정 (Transient Context Buffer)
+MAX_CONTEXT_CHARS = 30000  # 최대 문맥 버퍼 크기
+
+
 def search_knowledge(query: str, limit: int = 5) -> str:
     """FTS5 키워드 검색 (기본)"""
     try:
@@ -436,42 +451,294 @@ def search_knowledge(query: str, limit: int = 5) -> str:
         return f"검색 오류: {str(e)}"
 
 
-def search_knowledge_with_keywords(keywords: List[str], limit: int = 10) -> str:
-    """확장된 키워드 리스트로 FTS5 검색"""
+def search_fts5_with_optimized_query(query_string: str, limit: int = 10) -> List[tuple]:
+    """
+    FTS5 최적화 쿼리로 검색 (OR, NEAR, 접두사 지원)
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT title, content FROM tax_knowledge
+            WHERE tax_knowledge MATCH ?
+            ORDER BY rank LIMIT ?
+        """, (query_string, limit))
+        results = cursor.fetchall()
+        conn.close()
+        return results
+    except Exception as e:
+        print(f"FTS5 검색 오류: {e}")
+        return []
+
+
+def search_knowledge_multi_query(queries: List[str], limit: int = 10) -> str:
+    """
+    Multi-Query FTS5 검색: 여러 쿼리를 실행하고 결과를 중복 제거 후 통합
+    Transient Context Buffer 방식으로 메모리에서 처리
+    """
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         import re
 
-        all_results = []
+        # 중복 제거를 위한 Set (title 기준)
         seen_titles = set()
+        all_results = []
+        total_chars = 0
 
-        for keyword in keywords:
-            clean_keyword = re.sub(r'[^\w\s가-힣]', ' ', keyword)
-            words = [w.strip() for w in clean_keyword.split() if w.strip()]
+        for query in queries:
+            # 특수문자 제거 (FTS5 연산자 제외)
+            clean_query = re.sub(r'[^\w\s가-힣*]', ' ', query)
+            words = [w.strip() for w in clean_query.split() if w.strip()]
             if not words:
                 continue
+
+            # OR 연산자로 결합
             search_query = ' OR '.join(words)
+
             try:
                 cursor.execute("""
                     SELECT title, content FROM tax_knowledge
                     WHERE tax_knowledge MATCH ?
                     ORDER BY rank LIMIT ?
-                """, (search_query, max(1, limit // len(keywords))))
+                """, (search_query, limit // len(queries) + 2))
                 results = cursor.fetchall()
+
                 for title, content in results:
-                    if title not in seen_titles:
-                        seen_titles.add(title)
-                        all_results.append((title, content))
-            except:
+                    # 중복 제거
+                    if title in seen_titles:
+                        continue
+
+                    # 토큰 제한 체크
+                    content_len = len(content)
+                    if total_chars + content_len > MAX_CONTEXT_CHARS:
+                        break
+
+                    seen_titles.add(title)
+                    all_results.append((title, content))
+                    total_chars += content_len
+
+            except Exception as e:
+                print(f"쿼리 '{search_query}' 검색 오류: {e}")
                 continue
 
+            # 토큰 제한 도달 시 중단
+            if total_chars >= MAX_CONTEXT_CHARS:
+                break
+
         conn.close()
+
         if all_results:
             return "\n\n".join([f"### {t}\n{c}" for t, c in all_results[:limit]])
         return ""
     except Exception as e:
         return f"검색 오류: {str(e)}"
+
+
+async def generate_optimized_queries(query: str, time_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    [1단계] AI 쿼리 최적화 - Multi-Query 생성
+    - 사용자 질문을 분석하여 3~5개의 최적화된 검색 쿼리 생성
+    - 동의어 확장, 법률용어 확장, 시점 분석 포함
+    """
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        import re
+        words = [w for w in re.sub(r'[^\w\s가-힣]', ' ', query).split() if w.strip()]
+        return {
+            "original_query": query,
+            "intent": "양도소득세 관련 문의",
+            "issues": [query],
+            "reformulated_query": query,
+            "time_context": {"applicable_date": None, "law_version": "현행법"},
+            "fts5_queries": [' OR '.join(words[:5])],
+            "semantic_query": query,
+            "perplexity_query": query,
+            "keywords": words[:5],
+            "expanded_keywords": words[:5]
+        }
+
+    analysis_prompt = """당신은 양도소득세 전문 법률 검색 분석가입니다.
+이용자의 질문을 분석하여 최적의 검색 전략을 수립하세요.
+
+## 핵심 분석 항목
+
+### 1. 시점 분석 (매우 중요!)
+- 양도일, 취득일이 언제인지 파악
+- 어느 시점의 법령을 적용해야 하는지 확정
+- 해당 기간에 법령 개정이 있었는지 확인 필요 여부
+
+### 2. 의도 및 쟁점 분석
+- 이용자가 원하는 목적과 궁금한 점
+- 핵심 쟁점들 (최대 3개)
+- 명확하게 정리된 질문
+
+### 3. FTS5 최적화 쿼리 생성 (3~5개)
+각 쿼리는 다른 각도에서 검색하도록 설계:
+- 쿼리1: 핵심 법률용어 조합 (예: "비과세 OR 면세 OR 과세제외")
+- 쿼리2: 구체적 정황 기반 (예: "1세대1주택 OR 1가구1주택 OR 단독주택")
+- 쿼리3: 관련 조문/규정 (예: "소득세법 OR 시행령 OR 제89조")
+- 쿼리4: 동의어/유사어 확장 (예: "장특공제 OR 장기보유특별공제 OR 보유공제")
+- 쿼리5: 특수 상황/예외 (예: "조정대상지역 OR 투기과열지구 OR 중과")
+
+### 4. Perplexity 웹검색 쿼리
+- 법령 검증을 위한 검색어 (시점 정보 포함)
+- 예: "2024년 양도소득세 1세대1주택 비과세 요건 소득세법 개정"
+
+## 양도소득세 핵심 동의어 사전
+- 비과세: 면세, 세금면제, 과세제외, 비과세요건
+- 1세대1주택: 1가구1주택, 단독주택자, 1주택자, 단일주택
+- 장기보유특별공제: 장특공제, 장기보유공제, 보유기간공제
+- 양도차익: 양도차액, 양도이익, 매매차익, 시세차익
+- 취득가액: 취득원가, 매입가, 구입가격, 취득비용
+- 조정대상지역: 투기과열지구, 조정지역, 규제지역
+- 다주택자: 2주택자, 3주택자, 다주택, 복수주택
+- 일시적2주택: 이사목적, 대체취득, 종전주택, 신규주택
+- 중과세: 중과, 추가세율, 가산세율, 중과배제
+
+## 응답 형식 (JSON만 출력)
+```json
+{
+  "intent": "이용자의 목적 (2-3문장)",
+  "issues": ["쟁점1", "쟁점2", "쟁점3"],
+  "reformulated_query": "정리된 질문",
+  "time_context": {
+    "applicable_date": "적용 기준일 (YYYY-MM-DD 또는 null)",
+    "law_version": "적용 법령 버전 설명",
+    "needs_amendment_check": true/false
+  },
+  "fts5_queries": [
+    "쿼리1 (핵심 법률용어)",
+    "쿼리2 (구체적 정황)",
+    "쿼리3 (관련 조문)",
+    "쿼리4 (동의어 확장)",
+    "쿼리5 (특수 상황)"
+  ],
+  "semantic_query": "시멘틱 검색용 자연어 질문",
+  "perplexity_query": "웹검색용 쿼리 (시점+법령+핵심어)",
+  "keywords": ["키워드1", "키워드2"],
+  "expanded_keywords": ["확장키워드1", "확장키워드2", ...]
+}
+```
+
+이용자 질문: """ + query
+
+    if time_context:
+        analysis_prompt += f"\n\n추가 시점 정보: {json.dumps(time_context, ensure_ascii=False)}"
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            analysis_prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=2048
+            )
+        )
+
+        response_text = response.text
+        import re
+        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            json_str = json_match.group(0) if json_match else "{}"
+
+        analysis = json.loads(json_str)
+        analysis["original_query"] = query
+        return analysis
+
+    except Exception as e:
+        print(f"쿼리 최적화 오류: {e}")
+        import re
+        words = [w for w in re.sub(r'[^\w\s가-힣]', ' ', query).split() if w.strip()]
+        return {
+            "original_query": query,
+            "intent": "양도소득세 관련 문의",
+            "issues": [query],
+            "reformulated_query": query,
+            "time_context": {"applicable_date": None, "law_version": "현행법"},
+            "fts5_queries": [' OR '.join(words[:5])],
+            "semantic_query": query,
+            "perplexity_query": query,
+            "keywords": words[:5],
+            "expanded_keywords": words[:5]
+        }
+
+
+async def search_perplexity(query: str, time_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Perplexity AI 웹검색 API 호출
+    - 최신 법령 정보 검색 및 검증
+    - 시점별 법령 개정 여부 확인
+    """
+    if not PERPLEXITY_API_KEY:
+        return {
+            "status": "skip",
+            "message": "Perplexity API 키가 설정되지 않았습니다",
+            "result": ""
+        }
+
+    # 시점 정보를 쿼리에 포함
+    enhanced_query = query
+    if time_context and time_context.get("applicable_date"):
+        date = time_context["applicable_date"]
+        enhanced_query = f"{query} (적용 시점: {date}, 해당 시점의 법령과 세율 기준으로 검색)"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-sonar-small-128k-online",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": """당신은 한국 양도소득세 법령 전문가입니다.
+질문에 대해 다음을 반드시 확인하고 답변하세요:
+1. 적용되는 법령의 시점 (언제의 법령을 적용해야 하는지)
+2. 해당 시점에 법령 개정이 있었는지 여부
+3. 현행 법령과의 차이점
+4. 관련 법령 조문 번호 (소득세법, 시행령, 시행규칙)
+5. 명확한 결론과 법적 근거
+
+반드시 출처와 법령 조문을 인용하세요."""
+                        },
+                        {
+                            "role": "user",
+                            "content": enhanced_query
+                        }
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 2000
+                }
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                result_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                return {
+                    "status": "success",
+                    "result": result_text,
+                    "citations": data.get("citations", [])
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"API 오류: {response.status_code}",
+                    "result": ""
+                }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Perplexity 검색 오류: {str(e)}",
+            "result": ""
+        }
 
 
 async def analyze_query_with_ai(query: str) -> Dict[str, Any]:
@@ -623,33 +890,170 @@ async def search_gemini_file_store(query: str) -> str:
         return ""
 
 
-async def hybrid_rag_search(query_analysis: Dict[str, Any]) -> Dict[str, str]:
+async def parallel_search_pipeline(query_analysis: Dict[str, Any]) -> Dict[str, Any]:
     """
-    [2단계] 하이브리드 RAG 검색 수행
-    - FTS5: 확장된 키워드로 키워드 검색
-    - Gemini File Search: 정제된 질문으로 시멘틱 벡터 검색
-    - 두 검색을 동시에 수행하여 결과 통합
+    [2단계] 3가지 검색 병렬 실행 (Search Pipeline 2.0)
+    1. FTS5 Multi-Query 스마트 키워드 검색
+    2. Gemini File Search 시멘틱 벡터 검색
+    3. Perplexity AI 웹검색 (법령 검증)
+
+    모든 검색을 병렬로 실행하여 성능 최적화
     """
+    import asyncio
+
     results = {
         "fts5_results": "",
         "semantic_results": "",
+        "perplexity_results": {},
         "query_analysis": query_analysis
     }
 
-    # 1. FTS5 키워드 검색 (확장된 키워드 사용)
-    expanded_keywords = query_analysis.get("expanded_keywords", [])
-    if expanded_keywords:
-        results["fts5_results"] = search_knowledge_with_keywords(expanded_keywords, limit=10)
+    # FTS5 검색 (동기 함수이므로 executor로 실행)
+    def run_fts5_search():
+        fts5_queries = query_analysis.get("fts5_queries", [])
+        if fts5_queries:
+            return search_knowledge_multi_query(fts5_queries, limit=10)
+        else:
+            expanded_keywords = query_analysis.get("expanded_keywords", [])
+            if expanded_keywords:
+                return search_knowledge_multi_query(
+                    [' OR '.join(expanded_keywords)],
+                    limit=10
+                )
+            return search_knowledge(query_analysis.get("original_query", ""))
 
-    # 키워드 검색 결과가 없으면 기본 검색
-    if not results["fts5_results"]:
-        results["fts5_results"] = search_knowledge(query_analysis.get("original_query", ""))
+    # 비동기 검색 태스크 정의
+    async def gemini_search():
+        semantic_query = query_analysis.get("semantic_query",
+                        query_analysis.get("reformulated_query",
+                        query_analysis.get("original_query", "")))
+        return await search_gemini_file_store(semantic_query)
 
-    # 2. Gemini File Search 시멘틱 검색 (정제된 질문 사용)
-    reformulated_query = query_analysis.get("reformulated_query", query_analysis.get("original_query", ""))
-    results["semantic_results"] = await search_gemini_file_store(reformulated_query)
+    async def perplexity_search():
+        perplexity_query = query_analysis.get("perplexity_query",
+                          query_analysis.get("reformulated_query",
+                          query_analysis.get("original_query", "")))
+        time_context = query_analysis.get("time_context", {})
+        return await search_perplexity(perplexity_query, time_context)
+
+    # 병렬 실행
+    loop = asyncio.get_event_loop()
+
+    # FTS5 검색 (동기 -> 비동기 변환)
+    fts5_task = loop.run_in_executor(None, run_fts5_search)
+    gemini_task = gemini_search()
+    perplexity_task = perplexity_search()
+
+    # 모든 태스크 동시 실행
+    fts5_result, gemini_result, perplexity_result = await asyncio.gather(
+        fts5_task, gemini_task, perplexity_task,
+        return_exceptions=True
+    )
+
+    # 결과 처리
+    results["fts5_results"] = fts5_result if isinstance(fts5_result, str) else ""
+    results["semantic_results"] = gemini_result if isinstance(gemini_result, str) else ""
+    results["perplexity_results"] = perplexity_result if isinstance(perplexity_result, dict) else {"status": "error", "result": ""}
 
     return results
+
+
+async def cross_validate_results(
+    internal_results: str,
+    perplexity_results: Dict[str, Any],
+    query_analysis: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    [3단계] 교차검증 - 내부 RAG 결과와 Perplexity 웹검색 결과 비교
+    - 두 결과 사이에 차이가 있으면 분석
+    - 법적 근거에 기초하여 정확한 결론 도출
+    """
+    validation = {
+        "has_discrepancy": False,
+        "discrepancy_analysis": "",
+        "final_conclusion": "",
+        "confidence": "high"
+    }
+
+    perplexity_text = perplexity_results.get("result", "")
+    if not perplexity_text or perplexity_results.get("status") != "success":
+        # Perplexity 결과가 없으면 검증 생략
+        validation["confidence"] = "medium"
+        validation["final_conclusion"] = "웹검색 결과가 없어 내부 지식베이스 결과만으로 답변합니다."
+        return validation
+
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
+        return validation
+
+    # AI를 사용하여 두 결과 비교 분석
+    validation_prompt = f"""두 가지 검색 결과를 비교하여 교차검증하세요.
+
+## 질문
+{query_analysis.get('reformulated_query', query_analysis.get('original_query', ''))}
+
+## 시점 정보
+{json.dumps(query_analysis.get('time_context', {}), ensure_ascii=False)}
+
+## 내부 지식베이스 검색 결과 (RAG)
+{internal_results[:5000] if internal_results else '결과 없음'}
+
+## 웹검색 결과 (Perplexity)
+{perplexity_text[:5000]}
+
+## 분석 요청
+1. 두 결과 사이에 법적 결론이나 요건에 차이가 있는지 확인
+2. 차이가 있다면 그 원인 분석 (법령 개정, 시점 차이, 해석 차이 등)
+3. 법적 근거에 기초하여 어느 결과가 정확한지 판단
+4. 최종 결론 및 신뢰도 평가
+
+## 응답 형식 (JSON)
+```json
+{{
+  "has_discrepancy": true/false,
+  "discrepancy_analysis": "차이점 분석 (차이 없으면 빈 문자열)",
+  "correct_source": "internal/perplexity/both (정확한 출처)",
+  "legal_basis": "판단의 법적 근거",
+  "final_conclusion": "최종 결론",
+  "confidence": "high/medium/low"
+}}
+```"""
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(
+            validation_prompt,
+            generation_config=genai.GenerationConfig(
+                temperature=0.1,
+                max_output_tokens=1500
+            )
+        )
+
+        import re
+        json_match = re.search(r'```json\s*(.*?)\s*```', response.text, re.DOTALL)
+        if json_match:
+            validation = json.loads(json_match.group(1))
+        else:
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if json_match:
+                validation = json.loads(json_match.group(0))
+
+    except Exception as e:
+        print(f"교차검증 오류: {e}")
+
+    return validation
+
+
+async def hybrid_rag_search(query_analysis: Dict[str, Any]) -> Dict[str, str]:
+    """
+    [호환성 유지] 기존 함수 호환을 위한 래퍼
+    새로운 parallel_search_pipeline을 호출
+    """
+    results = await parallel_search_pipeline(query_analysis)
+    return {
+        "fts5_results": results.get("fts5_results", ""),
+        "semantic_results": results.get("semantic_results", ""),
+        "query_analysis": query_analysis
+    }
 
 
 # === JWT 토큰 관리 ===
@@ -878,44 +1282,80 @@ def calculate_cgt(data: CalcRequest) -> Dict[str, Any]:
         return result
 
 
-# === AI 상담 (3단계 RAG 파이프라인) ===
+# === AI 상담 (검색 파이프라인 2.0) ===
 async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_id: int = None) -> str:
     """
-    3단계 RAG 기반 AI 상담:
-    1단계: 질문 분석 - 의도 파악, 쟁점 확정, 키워드 확장
-    2단계: 하이브리드 검색 - FTS5 키워드검색 + Gemini 시멘틱검색
-    3단계: 결과 통합 - 검색 결과를 조합하여 보고서 형식 답변 생성
+    검색 파이프라인 2.0 기반 AI 상담:
+    1단계: AI 쿼리 최적화 - Multi-Query 생성, 시점 분석
+    2단계: 3가지 검색 병렬 실행 (FTS5 + Gemini + Perplexity)
+    3단계: 교차검증 - 내부 RAG vs 웹검색 결과 비교
+    4단계: 결과 통합 - 보고서 형식 답변 생성
     """
 
-    # ============================================
-    # [1단계] 질문 분석 - AI가 질문을 먼저 분석
-    # ============================================
-    query_analysis = await analyze_query_with_ai(query)
+    # 시점 정보 추출 (계산 데이터에서)
+    time_context = None
+    if context:
+        time_context = {
+            "transfer_date": context.get("transfer_date"),
+            "acquisition_date": context.get("acquisition_date")
+        }
 
     # ============================================
-    # [2단계] 하이브리드 RAG 검색
-    # - 확장 키워드로 FTS5 검색
-    # - 정제된 질문으로 Gemini File Search
+    # [1단계] AI 쿼리 최적화 - Multi-Query 생성
     # ============================================
-    search_results = await hybrid_rag_search(query_analysis)
+    query_analysis = await generate_optimized_queries(query, time_context)
 
-    # 검색 결과 통합
+    # ============================================
+    # [2단계] 3가지 검색 병렬 실행
+    # - FTS5: Multi-Query 스마트 키워드 검색
+    # - Gemini: 시멘틱 벡터 검색
+    # - Perplexity: 웹검색 (법령 검증)
+    # ============================================
+    search_results = await parallel_search_pipeline(query_analysis)
+
     fts5_knowledge = search_results.get("fts5_results", "")
     semantic_knowledge = search_results.get("semantic_results", "")
+    perplexity_results = search_results.get("perplexity_results", {})
+    perplexity_text = perplexity_results.get("result", "")
 
-    combined_knowledge = ""
+    # 내부 RAG 결과 통합
+    internal_knowledge = ""
     if fts5_knowledge:
-        combined_knowledge += f"## 관련 법령 및 세무 지식 (키워드 검색)\n{fts5_knowledge}\n\n"
+        internal_knowledge += f"## 관련 법령 및 세무 지식 (FTS5 키워드 검색)\n{fts5_knowledge}\n\n"
     if semantic_knowledge:
-        combined_knowledge += f"## 문서 검색 결과 (시멘틱 검색)\n{semantic_knowledge}\n\n"
+        internal_knowledge += f"## 문서 검색 결과 (시멘틱 검색)\n{semantic_knowledge}\n\n"
+
+    # ============================================
+    # [3단계] 교차검증 - 내부 RAG vs Perplexity
+    # ============================================
+    validation = await cross_validate_results(
+        internal_knowledge,
+        perplexity_results,
+        query_analysis
+    )
+
+    # 최종 지식베이스 구성
+    combined_knowledge = internal_knowledge
+    if perplexity_text and perplexity_results.get("status") == "success":
+        combined_knowledge += f"## 웹검색 결과 (Perplexity - 최신 법령 검증)\n{perplexity_text}\n\n"
+
+    if validation.get("has_discrepancy"):
+        combined_knowledge += f"""## 교차검증 결과 (주의)
+- 내부 검색과 웹검색 결과에 차이가 발견되었습니다.
+- 차이 분석: {validation.get('discrepancy_analysis', '')}
+- 법적 근거: {validation.get('legal_basis', '')}
+- 최종 판단: {validation.get('final_conclusion', '')}
+- 신뢰도: {validation.get('confidence', 'medium')}
+"""
 
     if not combined_knowledge:
         combined_knowledge = "관련 정보를 찾을 수 없습니다. 일반적인 양도소득세 지식을 바탕으로 답변합니다."
 
     # ============================================
-    # [3단계] 보고서 형식 답변 생성
+    # [4단계] 보고서 형식 답변 생성
     # ============================================
     today = datetime.now().strftime('%Y년 %m월 %d일')
+    time_context_info = query_analysis.get("time_context", {})
 
     system_prompt = f"""당신은 30년 경력의 양도소득세 전문 세무사입니다.
 아래의 [질문 분석 결과]와 [검색된 지식베이스]를 참고하여 이용자의 질문에 답변하세요.
@@ -925,20 +1365,31 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
 - 이용자의 의도: {query_analysis.get('intent', '양도소득세 관련 문의')}
 - 핵심 쟁점: {', '.join(query_analysis.get('issues', []))}
 - 정리된 질문: {query_analysis.get('reformulated_query', query)}
-- 검색 키워드: {', '.join(query_analysis.get('keywords', []))}
+- FTS5 검색 쿼리: {query_analysis.get('fts5_queries', [])}
 
-## 검색된 지식베이스
+## 시점 분석 (중요!)
+- 적용 기준일: {time_context_info.get('applicable_date', '현재')}
+- 적용 법령: {time_context_info.get('law_version', '현행법')}
+- 법령 개정 확인 필요: {time_context_info.get('needs_amendment_check', False)}
+
+## 검색된 지식베이스 (3가지 검색 통합)
 {combined_knowledge}
 
+## 교차검증 결과
+- 결과 일치 여부: {'불일치 - 주의 필요' if validation.get('has_discrepancy') else '일치 또는 검증 생략'}
+- 신뢰도: {validation.get('confidence', 'medium')}
+
 ## 답변 작성 지침
-1. 질문 분석 결과의 "핵심 쟁점"을 중심으로 답변하세요.
-2. 검색된 지식베이스의 내용을 근거로 답변하되, 없는 내용은 추측하지 마세요.
-3. 명확한 결론을 먼저 제시하고, 상세 설명을 뒤에 배치하세요.
-4. 관련 법령(소득세법, 시행령 등)이 있으면 반드시 인용하세요.
-5. 실무적으로 주의해야 할 사항과 리스크를 안내하세요.
+1. **시점 분석 우선**: 반드시 어느 시점의 법령을 적용해야 하는지 먼저 확정하세요.
+2. **법령 개정 확인**: 해당 기간에 법령 개정이 있었는지 확인하고 명시하세요.
+3. 질문 분석 결과의 "핵심 쟁점"을 중심으로 답변하세요.
+4. 검색된 지식베이스의 내용을 근거로 답변하되, 없는 내용은 추측하지 마세요.
+5. 교차검증에서 불일치가 있으면 그 내용을 반영하여 정확한 결론을 도출하세요.
+6. 명확한 결론을 먼저 제시하고, 상세 설명을 뒤에 배치하세요.
+7. 관련 법령(소득세법, 시행령 등)과 조문 번호를 반드시 인용하세요.
 
 ## 답변 형식 (HTML)
-반드시 다음 5단계 구조로 답변하세요:
+반드시 다음 6단계 구조로 답변하세요:
 
 <div class="report-section">
 <h3>1. 문의 개요</h3>
@@ -946,15 +1397,24 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
 <p><em>핵심 쟁점: [쟁점 나열]</em></p>
 </div>
 
+<div class="report-section time-analysis">
+<h3>2. 시점 분석 및 적용 법령</h3>
+<ul>
+<li><strong>적용 기준일:</strong> [양도일/취득일 등]</li>
+<li><strong>적용 법령:</strong> [해당 시점의 소득세법/시행령 버전]</li>
+<li><strong>법령 개정 여부:</strong> [개정 사항이 있다면 명시]</li>
+</ul>
+</div>
+
 <div class="report-section">
-<h3>2. 핵심 답변 (결론)</h3>
+<h3>3. 핵심 답변 (결론)</h3>
 <div class="conclusion-box">
 <p><strong>[명확하고 구체적인 결론 - 2~3문장]</strong></p>
 </div>
 </div>
 
 <div class="report-section">
-<h3>3. 상세 검토 및 법적 근거</h3>
+<h3>4. 상세 검토 및 법적 근거</h3>
 <ul>
 <li><strong>관련 법령:</strong> 소득세법 제○○조, 시행령 제○○조 등</li>
 <li><strong>적용 요건:</strong> 구체적인 요건 설명</li>
@@ -963,7 +1423,7 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
 </div>
 
 <div class="report-section">
-<h3>4. 주의사항 및 리스크</h3>
+<h3>5. 주의사항 및 리스크</h3>
 <ul>
 <li>신고 기한 및 납부 기한</li>
 <li>가산세 등 불이익</li>
@@ -972,13 +1432,14 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
 </div>
 
 <div class="report-section">
-<h3>5. 종합 의견</h3>
+<h3>6. 종합 의견</h3>
 <p>전문가로서의 종합적인 조언과 권고사항</p>
 </div>
 
 <div class="report-footer">
 <p>본 보고서는 일반적인 세무 상담 자료이며, 개별 사안에 따라 결과가 달라질 수 있습니다.</p>
 <p>정확한 세금 계산과 신고를 위해서는 세무사와의 개별 상담을 권장합니다.</p>
+<p>검색 신뢰도: {validation.get('confidence', 'medium').upper()}</p>
 <p>작성일: {today}</p>
 </div>
 """
@@ -1008,7 +1469,11 @@ async def get_ai_consultation(query: str, context: Optional[Dict] = None, user_i
         context_with_analysis = {
             "calculation_context": context,
             "query_analysis": query_analysis,
-            "search_keywords": query_analysis.get("expanded_keywords", [])
+            "search_results": {
+                "fts5_queries": query_analysis.get("fts5_queries", []),
+                "perplexity_status": perplexity_results.get("status"),
+                "validation": validation
+            }
         }
         cursor.execute(
             "INSERT INTO consultations (user_id, query, context_data, response_html) VALUES (?, ?, ?, ?)",
