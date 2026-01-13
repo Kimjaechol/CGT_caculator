@@ -157,9 +157,20 @@
                         <div class="card-header">텍스트/마크다운 파일 업로드 (FTS5)</div>
                         <div class="card-body">
                             <p class="text-sm text-gray-500 mb-4">
-                                .txt, .md 파일을 업로드하면 내용이 FTS5 키워드 검색 DB에 저장됩니다.
-                                파일명에서 카테고리를 추출합니다 (예: 비과세_일시적2주택.md → 카테고리: 비과세)
+                                .txt, .md 파일을 업로드하면 FTS5 키워드 검색 DB에 저장되고, AI가 자동으로 키워드를 추출합니다.
                             </p>
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">업로드할 카테고리 선택</label>
+                                <select id="uploadCategory" class="input">
+                                    <option value="비과세">비과세</option>
+                                    <option value="세율">세율</option>
+                                    <option value="공제">공제</option>
+                                    <option value="감면">감면</option>
+                                    <option value="신고">신고</option>
+                                    <option value="2025">2025</option>
+                                    <option value="일반">일반</option>
+                                </select>
+                            </div>
                             <div id="fts5UploadZone" class="upload-zone" onclick="document.getElementById('fts5FileInput').click()">
                                 <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
@@ -837,14 +848,17 @@
         // FTS5 파일 업로드 (AI 키워드 자동 추출)
         async function uploadFTS5Files(files) {
             const statusDiv = document.getElementById('fts5UploadStatus');
+            const selectedCategory = document.getElementById('uploadCategory').value;
+
             statusDiv.classList.remove('hidden');
-            statusDiv.innerHTML = '<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 및 AI 키워드 추출 중...</div>';
+            statusDiv.innerHTML = `<div class="flex items-center text-blue-600"><div class="spinner mr-2"></div>업로드 및 AI 키워드 추출 중... (카테고리: ${selectedCategory})</div>`;
 
             const uploadResults = [];
 
             for (const file of files) {
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('category', selectedCategory);
 
                 try {
                     const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/upload`, {

@@ -2169,6 +2169,7 @@ async def re_extract_keywords_bulk(
 @app.post("/api/admin/knowledge/upload")
 async def upload_knowledge_file(
     file: UploadFile = File(...),
+    category: str = Form(None),  # 관리자가 선택한 카테고리
     admin: dict = Depends(require_admin)
 ):
     """마크다운/텍스트 파일을 FTS5에 업로드 (AI 키워드 자동 추출)"""
@@ -2184,8 +2185,9 @@ async def upload_knowledge_file(
             "message": "텍스트 파일만 FTS5에 업로드할 수 있습니다. 바이너리 파일은 Gemini File Search를 사용해주세요."
         }
 
-    # 파일명에서 카테고리 추출 (예: "비과세_일시적2주택.md" -> "비과세")
-    category = filename.split('_')[0] if '_' in filename else "일반"
+    # 카테고리: 관리자가 선택한 값 사용 (없으면 기본값 '일반')
+    if not category:
+        category = "일반"
     title = filename.rsplit('.', 1)[0]  # 확장자 제거
 
     # AI 키워드 자동 추출 (Gemini 사용)
