@@ -36,8 +36,8 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# CORS 설정 - Vercel 프론트엔드 허용
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://cgt-caculator.vercel.app")
+# CORS 설정 - 프론트엔드 허용
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://cgt.lawith.kr")
 
 # Vercel 서브도메인 패턴을 허용하는 정규식
 CORS_ORIGIN_REGEX = r"https://cgt-caculator(-[a-z0-9]+)?\.vercel\.app"
@@ -46,6 +46,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         FRONTEND_URL,
+        "https://cgt.lawith.kr",
         "https://cgt-caculator.vercel.app",
         "http://localhost:3000",
         "http://localhost:5173",
