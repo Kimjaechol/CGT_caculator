@@ -419,7 +419,12 @@ def init_user_db():
 # ============================================
 async def extract_keywords_with_ai(content: str, title: str = "") -> str:
     """
-    AI를 사용하여 세무 문서에서 핵심 키워드 10~20개 자동 추출
+    AI를 사용하여 세무 문서에서 핵심 키워드 15~25개 자동 추출
+    추출 기준:
+    1. 반복 빈도가 높은 법률용어
+    2. 제목과 관련된 유사어/동의어
+    3. 조문 번호 및 법령명
+    4. 조문에 포함된 법률용어와 의미적으로 관련된 개념
     """
     if not GEMINI_API_KEY or GEMINI_API_KEY == "your_gemini_api_key_here":
         # API 키가 없으면 제목에서 기본 키워드 추출
@@ -427,16 +432,31 @@ async def extract_keywords_with_ai(content: str, title: str = "") -> str:
 
     try:
         # 내용이 너무 길면 앞부분만 사용 (토큰 절약)
-        truncated_content = content[:8000] if len(content) > 8000 else content
+        truncated_content = content[:10000] if len(content) > 10000 else content
 
-        prompt = f"""당신은 한국 세무 전문가입니다. 아래 세무 관련 문서에서 FTS5 검색에 최적화된 핵심 키워드 10~20개를 추출해주세요.
+        prompt = f"""당신은 한국 세무/세법 전문가입니다. 아래 세무 관련 문서를 분석하여 FTS5 검색에 최적화된 핵심 키워드 15~25개를 추출해주세요.
 
-## 키워드 추출 기준:
-1. 법률 용어 (예: 비과세, 양도소득세, 장기보유특별공제)
-2. 조문 번호 (예: 제89조, 제154조, 소득세법)
-3. 핵심 개념 (예: 1세대1주택, 고가주택, 12억원)
-4. 동의어/유사어 포함 (예: 1가구1주택, 단독주택)
-5. 시행령, 시행규칙 언급시 포함
+## 키워드 추출 기준 (중요도 순):
+
+### 1. 반복 빈도가 높은 법률용어 (최우선)
+- 문서 내에서 여러 번 반복되는 핵심 법률용어를 우선 추출
+- 예: 비과세, 양도소득세, 장기보유특별공제, 취득가액, 필요경비
+
+### 2. 제목 관련 유사어/동의어
+- 문서 제목에 포함된 키워드와 의미적으로 관련된 용어
+- 예: 제목이 "1세대1주택"이면 → 1가구1주택, 단독주택, 본인주택 등 포함
+
+### 3. 조문 번호 및 법령명
+- 소득세법, 시행령, 시행규칙 + 조문번호 (예: 제89조, 제154조)
+- 법령 약칭도 포함 (예: 소법, 소령, 조특법)
+
+### 4. 법조문 관련 핵심 개념
+- 조문에서 규정하는 요건, 기준, 금액 등
+- 예: 12억원, 2년보유, 거주요건, 보유기간, 실거주
+
+### 5. 상위/하위 개념 및 관련 범주
+- 해당 세목과 관련된 상위/하위 법률 개념
+- 예: 양도소득 → 양도차익, 취득시기, 양도시기, 기준시가
 
 ## 문서 제목: {title}
 
@@ -444,8 +464,9 @@ async def extract_keywords_with_ai(content: str, title: str = "") -> str:
 {truncated_content}
 
 ## 출력 형식:
-키워드만 공백으로 구분하여 한 줄로 출력 (설명 없이)
-예시: 비과세 1세대1주택 양도소득세 12억원 2년보유 거주요건 소득세법 제89조 장기보유특별공제"""
+- 키워드만 공백으로 구분하여 한 줄로 출력 (설명 없이)
+- 중복 없이 15~25개
+- 예시: 비과세 1세대1주택 1가구1주택 양도소득세 12억원 2년보유 거주요건 소득세법 제89조 장기보유특별공제 취득가액 양도차익 보유기간 실거주 고가주택"""
 
         model = genai.GenerativeModel("gemini-2.0-flash")
         response = model.generate_content(prompt)
@@ -455,7 +476,7 @@ async def extract_keywords_with_ai(content: str, title: str = "") -> str:
             keywords = response.text.strip().replace('\n', ' ').replace(',', ' ')
             # 중복 제거
             keyword_list = list(dict.fromkeys(keywords.split()))
-            return ' '.join(keyword_list[:20])  # 최대 20개
+            return ' '.join(keyword_list[:25])  # 최대 25개
 
         return title.replace('_', ' ')
 
@@ -2040,6 +2061,108 @@ async def get_knowledge_entry(entry_id: int, admin: dict = Depends(require_admin
         "title": row[2],
         "content": row[3],
         "keywords": row[4]
+    }
+
+
+@app.post("/api/admin/knowledge/{entry_id}/re-extract-keywords")
+async def re_extract_keywords_single(entry_id: int, admin: dict = Depends(require_admin)):
+    """단일 지식 항목의 키워드를 AI로 재추출"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT rowid, title, content FROM tax_knowledge WHERE rowid = ?", (entry_id,))
+    row = cursor.fetchone()
+
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="항목을 찾을 수 없습니다")
+
+    entry_id, title, content = row
+
+    # AI 키워드 추출
+    new_keywords = await extract_keywords_with_ai(content, title)
+
+    # 키워드 업데이트
+    cursor.execute("UPDATE tax_knowledge SET keywords = ? WHERE rowid = ?", (new_keywords, entry_id))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "entry_id": entry_id,
+        "title": title,
+        "new_keywords": new_keywords,
+        "keyword_count": len(new_keywords.split()) if new_keywords else 0
+    }
+
+
+@app.post("/api/admin/knowledge/re-extract-keywords-bulk")
+async def re_extract_keywords_bulk(
+    entry_ids: str = Form(None),  # 콤마로 구분된 ID 목록 또는 "all"
+    admin: dict = Depends(require_admin)
+):
+    """
+    다수/전체 지식 항목의 키워드를 AI로 재추출
+    entry_ids: 콤마로 구분된 ID 목록 (예: "1,2,3") 또는 "all" (전체)
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    # 대상 항목 선택
+    if entry_ids == "all" or not entry_ids:
+        cursor.execute("SELECT rowid, title, content FROM tax_knowledge")
+    else:
+        id_list = [int(x.strip()) for x in entry_ids.split(',') if x.strip().isdigit()]
+        if not id_list:
+            conn.close()
+            return {"status": "error", "message": "유효한 ID가 없습니다"}
+        placeholders = ','.join(['?' for _ in id_list])
+        cursor.execute(f"SELECT rowid, title, content FROM tax_knowledge WHERE rowid IN ({placeholders})", id_list)
+
+    rows = cursor.fetchall()
+
+    if not rows:
+        conn.close()
+        return {"status": "error", "message": "처리할 항목이 없습니다"}
+
+    results = []
+    success_count = 0
+    error_count = 0
+
+    for row in rows:
+        entry_id, title, content = row
+        try:
+            # AI 키워드 추출
+            new_keywords = await extract_keywords_with_ai(content, title)
+
+            # 키워드 업데이트
+            cursor.execute("UPDATE tax_knowledge SET keywords = ? WHERE rowid = ?", (new_keywords, entry_id))
+
+            results.append({
+                "entry_id": entry_id,
+                "title": title,
+                "keywords": new_keywords,
+                "keyword_count": len(new_keywords.split()) if new_keywords else 0,
+                "status": "success"
+            })
+            success_count += 1
+        except Exception as e:
+            results.append({
+                "entry_id": entry_id,
+                "title": title,
+                "error": str(e),
+                "status": "error"
+            })
+            error_count += 1
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "success",
+        "total": len(rows),
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results
     }
 
 

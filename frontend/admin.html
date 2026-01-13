@@ -175,14 +175,23 @@
 
                 <!-- 지식 목록 -->
                 <div class="card mt-6">
-                    <div class="card-header flex items-center justify-between">
+                    <div class="card-header flex flex-wrap items-center justify-between gap-2">
                         <span>지식 데이터베이스 목록</span>
-                        <button onclick="loadKnowledge()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="reExtractSelectedKeywords()" id="reExtractSelectedBtn" class="btn text-sm bg-purple-500 text-white hover:bg-purple-600 hidden">
+                                선택 항목 키워드 재추출
+                            </button>
+                            <button onclick="reExtractAllKeywords()" class="btn text-sm bg-purple-100 text-purple-700 hover:bg-purple-200">
+                                전체 키워드 재추출
+                            </button>
+                            <button onclick="loadKnowledge()" class="btn text-sm bg-gray-100 text-gray-700">새로고침</button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table>
                             <thead>
                                 <tr>
+                                    <th class="w-10"><input type="checkbox" id="selectAllKnowledge" onchange="toggleSelectAll(this)" class="rounded"></th>
                                     <th>ID</th>
                                     <th>카테고리</th>
                                     <th>제목</th>
@@ -192,7 +201,7 @@
                                 </tr>
                             </thead>
                             <tbody id="knowledgeTableBody">
-                                <tr><td colspan="6" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
+                                <tr><td colspan="7" class="text-center text-gray-400 py-8">데이터를 불러오는 중...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -587,29 +596,35 @@
         // 지식 DB 관리
         async function loadKnowledge() {
             const tbody = document.getElementById('knowledgeTableBody');
+            // 전체 선택 체크박스 초기화
+            document.getElementById('selectAllKnowledge').checked = false;
+            updateSelectedCount();
+
             try {
                 const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge`);
                 const data = await res.json();
                 if (data.entries && data.entries.length > 0) {
                     tbody.innerHTML = data.entries.map(e => `
                         <tr>
+                            <td><input type="checkbox" class="knowledge-checkbox rounded" value="${e.id}" onchange="updateSelectedCount()"></td>
                             <td>${e.id}</td>
                             <td><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">${e.category}</span></td>
                             <td class="font-medium">${e.title}</td>
                             <td class="max-w-xs truncate" title="${e.content}">${e.content.substring(0, 100)}...</td>
-                            <td class="text-gray-500 text-xs">${e.keywords}</td>
-                            <td>
-                                <button onclick="showEditModal(${e.id})" class="text-blue-500 hover:text-blue-700 text-sm mr-2">편집</button>
+                            <td class="text-gray-500 text-xs max-w-xs truncate" title="${e.keywords}">${e.keywords || '-'}</td>
+                            <td class="whitespace-nowrap">
+                                <button onclick="reExtractSingleKeyword(${e.id})" class="text-purple-500 hover:text-purple-700 text-sm mr-1" title="키워드 재추출">🔄</button>
+                                <button onclick="showEditModal(${e.id})" class="text-blue-500 hover:text-blue-700 text-sm mr-1">편집</button>
                                 <button onclick="deleteKnowledge(${e.id})" class="text-red-500 hover:text-red-700 text-sm">삭제</button>
                             </td>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-gray-400 py-8">등록된 지식이 없습니다</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-gray-400 py-8">등록된 지식이 없습니다</td></tr>';
                 }
             } catch (err) {
                 console.error(err);
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-red-400 py-8">데이터 로드 실패: ${err.message}</td></tr>`;
             }
         }
 
@@ -647,6 +662,123 @@
                 loadKnowledge();
             } catch (err) {
                 showToast('삭제 중 오류가 발생했습니다', 'error');
+            }
+        }
+
+        // 키워드 재추출 관련 함수들
+        function toggleSelectAll(checkbox) {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox:checked');
+            const btn = document.getElementById('reExtractSelectedBtn');
+            if (checkboxes.length > 0) {
+                btn.classList.remove('hidden');
+                btn.textContent = `선택 항목 키워드 재추출 (${checkboxes.length}개)`;
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function getSelectedIds() {
+            const checkboxes = document.querySelectorAll('.knowledge-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        async function reExtractSingleKeyword(id) {
+            if (!confirm('이 항목의 키워드를 AI로 재추출하시겠습니까?')) return;
+
+            showToast('키워드 추출 중...', 'success');
+
+            try {
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/${id}/re-extract-keywords`, {
+                    method: 'POST'
+                }, 30000);
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`키워드 ${data.keyword_count}개 추출 완료`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            }
+        }
+
+        async function reExtractSelectedKeywords() {
+            const ids = getSelectedIds();
+            if (ids.length === 0) {
+                showToast('선택된 항목이 없습니다', 'error');
+                return;
+            }
+
+            if (!confirm(`선택한 ${ids.length}개 항목의 키워드를 AI로 재추출하시겠습니까?\n(시간이 걸릴 수 있습니다)`)) return;
+
+            const btn = document.getElementById('reExtractSelectedBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '추출 중...';
+
+            try {
+                const formData = new FormData();
+                formData.append('entry_ids', ids.join(','));
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/re-extract-keywords-bulk`, {
+                    method: 'POST',
+                    body: formData
+                }, 120000); // 2분 타임아웃
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`${data.success_count}개 성공, ${data.error_count}개 실패`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function reExtractAllKeywords() {
+            if (!confirm('모든 항목의 키워드를 AI로 재추출하시겠습니까?\n⚠️ 항목 수에 따라 시간이 오래 걸릴 수 있습니다.')) return;
+
+            const btn = document.querySelector('button[onclick="reExtractAllKeywords()"]');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '전체 추출 중...';
+
+            try {
+                const formData = new FormData();
+                formData.append('entry_ids', 'all');
+
+                const res = await adminFetch(`${API_BASE_URL}/api/admin/knowledge/re-extract-keywords-bulk`, {
+                    method: 'POST',
+                    body: formData
+                }, 300000); // 5분 타임아웃
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showToast(`전체 키워드 재추출 완료: ${data.success_count}개 성공, ${data.error_count}개 실패`, 'success');
+                    loadKnowledge();
+                } else {
+                    showToast(data.message || '키워드 추출 실패', 'error');
+                }
+            } catch (err) {
+                showToast(`키워드 추출 오류: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
 
